@@ -24,6 +24,8 @@ ASM_INSTRUCTIONS = {
     "CMP": ("Compares two operands by setting CPU flags.", "cmp w0, #0", "Check if W0 is zero"),
     "RET": ("Returns from a function.", "ret", "Return to the calling function"),
     "LEA": ("Load Effective Address (calculates pointer).", "lea rax, [rbp-8]", "Get the address of a local variable"),
+    "CDQ": ("Sign-extends EAX into EDX:EAX. Prepared for 64-bit division.", "cdq", "Sign-extend EAX into EDX"),
+    "IDIV": ("Signed divide. Divides EDX:EAX by the operand.", "idiv ecx", "EAX = Quotient, EDX = Remainder"),
     
     # --- ARM64 Specific (Modern Mac) ---
     "LDR": ("Load Register: Loads a value from memory into a register.", "ldr x0, [x1]", "Load value at address x1 into x0"),
