@@ -1,0 +1,21 @@
+/*
+ * LocalBolt — Layout
+ * Assembly-only view with a status bar at the bottom.
+ * Member D will add colors/themes on top of this.
+ */
+
+Screen {
+    layout: vertical;
+}
+
+#assembly-view {
+    height: 1fr;
+    overflow-y: auto;
+}
+
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $text;
+}
