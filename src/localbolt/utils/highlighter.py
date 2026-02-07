@@ -40,7 +40,7 @@ def highlight_asm(cleaned_asm: list[str]) -> Text:
     Custom rules applied via Rich Text styling:
       - Registers (rax, rbx, eax, etc.) -> RED / bold
       - Instructions (mov, add, sub, cmp, jmp, call, ret) -> BLUE
-      - Comments (lines starting with # or ;) -> DIM / GREY
+      - Comments (lines starting with # or ;) -> bright_black
       - Labels (ending with :) -> YELLOW / bold
       - Size keywords (DWORD, PTR, etc.) -> MAGENTA
       - Numeric literals (42, 0xff, etc.) -> CYAN
@@ -58,10 +58,10 @@ def highlight_asm(cleaned_asm: list[str]) -> Text:
         line = line_match.group()
         start = line_match.start()
 
-        # Comments: entire line is dim grey
+        # Comments: entire line is bright_black
         stripped = line.lstrip()
         if stripped.startswith("#") or stripped.startswith(";"):
-            text.stylize("dim grey", start, start + len(line))
+            text.stylize("bright_black", start, start + len(line))
             continue
         
         # Labels (e.g. "main:" or ".L1:")
@@ -109,9 +109,9 @@ def _highlight_asm_line(line: str, bg: str) -> Text:
     segment = Text()
     stripped = line.lstrip()
 
-    # Comments: entire line dim grey
+    # Comments: entire line bright_black
     if stripped.startswith("#") or stripped.startswith(";"):
-        segment.append(line, style=f"dim grey {bg}")
+        segment.append(line, style=f"bright_black {bg}".strip())
         return segment
 
     # Walk through the line applying token-level highlighting
