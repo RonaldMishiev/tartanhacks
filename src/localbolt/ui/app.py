@@ -88,6 +88,8 @@ class LocalBoltApp(App):
         self._cursor = 0
         self._asm_lines: list[str] = []
         self._cycle_counts: dict[int, int] = {}
+        self._asm_mapping: dict[int, int] = {}  # asm_line_idx -> source_line_number
+        self._sibling_lines: set[int] = set()   # asm indices sharing the same C++ line as cursor
 
     def compose(self) -> ComposeResult:
         with Vertical(id="main-layout"):
@@ -112,7 +114,13 @@ class LocalBoltApp(App):
         fg, _ = severity_styles(cycles)
         width = 200 
         row = Text()
-        row.append("▶ " if idx == self._cursor else "  ", style=f"bold {C_ACCENT4}")
+        # Gutter indicator: cursor ▶, sibling │, or blank
+        if idx == self._cursor:
+            row.append("▶ ", style=f"bold {C_ACCENT4}")
+        elif idx in self._sibling_lines:
+            row.append("│ ", style=f"bold {C_ACCENT1}")
+        else:
+            row.append("  ")
         row.append_text(highlight_asm_line(line, ""))
         gutter_text = f"{cycles}c" if cycles is not None else ""
         used = 2 + len(line) + len(gutter_text)
@@ -134,25 +142,46 @@ class LocalBoltApp(App):
             widgets.append(widget)
         if widgets: scroll.mount(*widgets)
 
+    def _compute_siblings(self) -> set[int]:
+        """Find all asm line indices that map to the same C++ source line as the cursor."""
+        cursor_src = self._asm_mapping.get(self._cursor)
+        if cursor_src is None:
+            return set()
+        return {
+            idx for idx, src in self._asm_mapping.items()
+            if src == cursor_src and idx != self._cursor
+        }
+
     def _move_cursor(self, new: int) -> None:
         if new < 0 or new >= len(self._asm_lines): return
         old, self._cursor = self._cursor, new
         gen = getattr(self, "_generation", 0)
-        try:
-            old_w = self.query_one(f"#asm-line-{gen}-{old}", AsmLine)
-            old_w.remove_class("cursor")
-            old_w.update(self._render_line(old))
-        except: pass
-        try:
-            new_w = self.query_one(f"#asm-line-{gen}-{new}", AsmLine)
-            new_w.add_class("cursor")
-            new_w.update(self._render_line(new))
-            new_w.scroll_visible()
-        except: pass
+
+        # Collect lines that need re-rendering: old siblings, old cursor, new siblings, new cursor
+        old_siblings = self._sibling_lines
+        self._sibling_lines = self._compute_siblings()
+        dirty = {old} | old_siblings | {new} | self._sibling_lines
+
+        for idx in dirty:
+            try:
+                w = self.query_one(f"#asm-line-{gen}-{idx}", AsmLine)
+                if idx == new:
+                    w.add_class("cursor")
+                else:
+                    w.remove_class("cursor")
+                w.update(self._render_line(idx))
+                if idx == new:
+                    w.scroll_visible()
+            except Exception:
+                pass
+
         self._sync_peek()
 
     def action_cursor_up(self) -> None: self._move_cursor(self._cursor - 1)
     def action_cursor_down(self) -> None: self._move_cursor(self._cursor + 1)
+
+    def action_refresh(self) -> None:
+        self.engine.refresh()
 
     def on_local_bolt_app_state_updated(self, message: StateUpdated) -> None:
         state = message.state
@@ -173,6 +202,8 @@ class LocalBoltApp(App):
                     instr_idx += 1
             self._populate_asm_lines()
         
+        self._asm_mapping = state.asm_mapping
+        self._sibling_lines = self._compute_siblings()
         self.query_one("#source-peek", SourcePeekPanel).update_context(state.source_lines, state.asm_mapping)
         self._sync_peek()
 

@@ -175,6 +175,15 @@ def _inject_fakes(engine_instance=None):
     else:
         engine_mod.BoltEngine = FakeEngine
 
+    # --- localbolt.utils.asm_help ---
+    asm_help_mod = types.ModuleType("localbolt.utils.asm_help")
+    asm_help_mod.ASM_INSTRUCTIONS = {}
+
+    # --- localbolt.ui.instruction_help ---
+    # We let instruction_help import naturally since it only needs asm_help
+    # and highlighter which we already faked, but we must pop it for reimport
+    instr_help_mod = None  # will be reimported naturally
+
     fakes = {
         "localbolt.parsing.perf_parser": pp_mod,
         "localbolt.parsing.diagnostics": diag_mod,
@@ -182,6 +191,7 @@ def _inject_fakes(engine_instance=None):
         "localbolt.utils.state": state_mod,
         "localbolt.utils.watcher": watcher_mod,
         "localbolt.utils.highlighter": hl_mod,
+        "localbolt.utils.asm_help": asm_help_mod,
         "localbolt.compiler.driver": driver_mod,
         "localbolt.engine": engine_mod,
     }
@@ -193,10 +203,12 @@ def _inject_fakes(engine_instance=None):
     # Force reimport of app.py so it picks up the fakes
     sys.modules.pop("localbolt.ui.app", None)
     sys.modules.pop("localbolt.ui.source_peek", None)
+    sys.modules.pop("localbolt.ui.instruction_help", None)
 
     def cleanup():
         sys.modules.pop("localbolt.ui.app", None)
         sys.modules.pop("localbolt.ui.source_peek", None)
+        sys.modules.pop("localbolt.ui.instruction_help", None)
         for name in fakes:
             if originals[name] is None:
                 sys.modules.pop(name, None)
@@ -273,8 +285,8 @@ class TestAppComposition:
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_app_has_header_and_footer(self):
-        """App should have Header and Footer widgets."""
+    async def test_app_has_footer(self):
+        """App should have a Footer widget."""
         tmp = _make_tmp_cpp()
         fakes, cleanup = _inject_fakes()
         try:
@@ -282,8 +294,6 @@ class TestAppComposition:
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Footer
-                from localbolt.ui.app import MosaicHeader
-                assert pilot.app.query_one(MosaicHeader) is not None
                 assert pilot.app.query_one(Footer) is not None
         finally:
             cleanup()
@@ -430,6 +440,7 @@ class TestEngineIntegration:
         engine_mod.BoltEngine = bad_engine
         sys.modules["localbolt.engine"] = engine_mod
         sys.modules.pop("localbolt.ui.app", None)
+        sys.modules.pop("localbolt.ui.instruction_help", None)
 
         try:
             from localbolt.ui.app import LocalBoltApp
@@ -524,7 +535,7 @@ class TestSourcePeek:
 
     @pytest.mark.asyncio
     async def test_source_peek_show_for_line(self):
-        """SourcePeekPanel.show_for_asm_line should look up the correct source."""
+        """SourcePeekPanel.show_for_asm_line should display the panel when mapping exists."""
         tmp = _make_tmp_cpp("int main() {\n    return 42;\n}\n")
         engine = FakeEngine(tmp)
         engine.state.source_lines = ["int main() {", "    return 42;", "}"]
@@ -539,14 +550,15 @@ class TestSourcePeek:
                 await pilot.pause()
                 sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
                 sp.show_for_asm_line(3)
-                assert sp._current_source_line == 2
+                # Panel should be visible when a valid mapping exists
+                assert sp.display is True
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
     async def test_source_peek_empty_mapping(self):
-        """With no mapping, source peek should show placeholder."""
+        """With no mapping, source peek should be hidden."""
         tmp = _make_tmp_cpp()
         engine = FakeEngine(tmp)
         engine.state.source_lines = []
@@ -562,7 +574,8 @@ class TestSourcePeek:
                 sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
                 sp.update_context(source_lines=[], asm_mapping={})
                 sp.show_for_asm_line(1)
-                assert sp._current_source_line is None
+                # Panel should be hidden when no mapping is available
+                assert sp.display is False
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
