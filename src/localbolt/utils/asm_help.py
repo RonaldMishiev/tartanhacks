@@ -14,26 +14,28 @@ C_ACCENT4 = "#fecd91" # Orange
 
 # Instruction: (Description, Example, Meaning)
 ASM_INSTRUCTIONS = {
+    # --- Universal / x86 ---
     "MOV": ("Copies data from one location to another.", "mov eax, ebx", "Copy value from EBX into EAX"),
-    "PUSH": ("Pushes a value onto the stack.", "push rax", "Put RAX onto the stack"),
-    "POP": ("Pops a value from the stack into a register.", "pop rdi", "Take value from top of stack into RDI"),
-    "ADD": ("Adds two operands and stores the result in the first.", "add eax, 5", "EAX = EAX + 5"),
-    "SUB": ("Subtracts the second operand from the first.", "sub rsp, 16", "Allocate 16 bytes on the stack"),
-    "IMUL": ("Signed multiplication of two operands.", "imul rax, rbx", "RAX = RAX * RBX"),
-    "IDIV": ("Signed division.", "idiv rcx", "Divide RDX:RAX by RCX"),
-    "INC": ("Increments an operand by 1.", "inc ecx", "ECX = ECX + 1"),
-    "DEC": ("Decrements an operand by 1.", "dec edx", "EDX = EDX - 1"),
-    "CMP": ("Compares two operands by setting CPU flags.", "cmp eax, 0", "Check if EAX is zero"),
-    "JMP": ("Unconditional jump to a label or address.", "jmp .L2", "Always jump to label .L2"),
-    "JE/JZ": ("Jump if equal / Jump if zero (ZF=1).", "je .Lerror", "Jump to .Lerror if previous CMP was equal"),
-    "JNE/JNZ": ("Jump if not equal / Jump if not zero (ZF=0).", "jne .Lloop", "Jump to .Lloop if previous CMP was not equal"),
-    "JG": ("Jump if greater (signed).", "jg .Lgreater", "Jump if left > right (signed)"),
-    "JL": ("Jump if less (signed).", "jl .Lless", "Jump if left < right (signed)"),
-    "CALL": ("Calls a function; pushes return address to stack.", "call printf", "Execute the printf function"),
+    "PUSH": ("Pushes a value onto the stack (x86).", "push rax", "Put RAX onto the stack"),
+    "POP": ("Pops a value from the stack into a register (x86).", "pop rdi", "Take value from top of stack into RDI"),
+    "ADD": ("Adds two operands and stores the result in the first.", "add x0, x1, x2", "x0 = x1 + x2"),
+    "SUB": ("Subtracts the second operand from the first.", "sub sp, sp, #16", "Allocate 16 bytes on the stack"),
+    "IMUL": ("Signed multiplication.", "imul rax, rbx", "RAX = RAX * RBX"),
+    "CMP": ("Compares two operands by setting CPU flags.", "cmp w0, #0", "Check if W0 is zero"),
     "RET": ("Returns from a function.", "ret", "Return to the calling function"),
     "LEA": ("Load Effective Address (calculates pointer).", "lea rax, [rbp-8]", "Get the address of a local variable"),
-    "AND/OR/XOR": ("Bitwise logical operations.", "xor eax, eax", "Quickly set EAX to zero"),
-    "NOP": ("No Operation (does nothing for one cycle).", "nop", "Wait/Do nothing for one cycle"),
+    
+    # --- ARM64 Specific (Modern Mac) ---
+    "LDR": ("Load Register: Loads a value from memory into a register.", "ldr x0, [x1]", "Load value at address x1 into x0"),
+    "STR": ("Store Register: Stores a register value into memory.", "str x0, [sp, #8]", "Store x0 at stack offset 8"),
+    "LDP": ("Load Pair: Loads two registers from consecutive memory.", "ldp x29, x30, [sp], #16", "Restore Frame Pointer and Link Reg"),
+    "STP": ("Store Pair: Stores two registers into consecutive memory.", "stp x29, x30, [sp, #-16]!", "Save Frame Pointer and Link Reg"),
+    "ADRP": ("Address Page: Form PC-relative address to a 4KB page.", "adrp x0, label@PAGE", "Calculate base address of a global"),
+    "BL": ("Branch with Link: Calls a function.", "bl _printf", "Execute the printf function"),
+    "B": ("Branch: Unconditional jump.", "b .L2", "Always jump to label .L2"),
+    "B.": ("Conditional Branch (e.g., B.EQ, B.NE).", "b.eq .Lerror", "Jump if previous comparison was equal"),
+    "STUR": ("Store Unscaled: Store register with an unscaled offset.", "stur w0, [x29, #-4]", "Store local variable on stack"),
+    "LDUR": ("Load Unscaled: Load register with an unscaled offset.", "ldur w0, [x29, #-4]", "Load local variable from stack"),
 }
 
 def create_gradient_header(title: str) -> Text:

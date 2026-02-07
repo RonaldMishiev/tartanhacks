@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, TextArea
-from textual.containers import VerticalScroll, Horizontal, Vertical, Container
+from textual.containers import VerticalScroll, Horizontal, Vertical
 from textual.binding import Binding
 from textual.message import Message
 from rich.text import Text
@@ -8,14 +8,7 @@ from ..engine import BoltEngine
 from ..utils.state import LocalBoltState
 from ..utils.highlighter import build_gutter, highlight_asm_line, severity_styles, INSTRUCTIONS
 from .source_peek import SourcePeekPanel
-
-# User Palette
-C_BG = "#EBEEEE"
-C_TEXT = "#191A1A"
-C_ACCENT1 = "#45d3ee" # Cyan
-C_ACCENT2 = "#9FBFC5" # Muted Blue
-C_ACCENT3 = "#94bfc1" # Teal
-C_ACCENT4 = "#fecd91" # Orange
+from .instruction_help import InstructionHelpPanel
 
 def _severity_class(cycles: int | None) -> str:
     """Map cycle count to a CSS class name for full-width background tint."""
@@ -30,6 +23,14 @@ class AsmLine(Static):
 class AsmScroll(VerticalScroll):
     """VerticalScroll with up/down disabled so the App handles cursor movement."""
     BINDINGS = []
+
+# User Palette
+C_BG = "#EBEEEE"
+C_TEXT = "#191A1A"
+C_ACCENT1 = "#45d3ee" # Cyan
+C_ACCENT2 = "#9FBFC5" # Muted Blue
+C_ACCENT3 = "#94bfc1" # Teal
+C_ACCENT4 = "#fecd91" # Orange
 
 class MosaicHeader(Static):
     """A header with a horizontal gradient to match the Mosaic theme."""
@@ -54,7 +55,6 @@ class LocalBoltApp(App):
     Screen {{ 
         background: {C_BG}; 
         color: {C_TEXT};
-        layers: base overlay;
     }}
     
     MosaicHeader {{
@@ -63,28 +63,31 @@ class LocalBoltApp(App):
         width: 100%;
     }}
 
-    #asm-wrapper {{
+    #main-layout {{
         height: 1fr;
-        width: 1fr;
-        border: solid {C_ACCENT2};
-        background: {C_BG};
         margin: 1 2;
-        layer: base;
     }}
 
     #asm-container {{ 
         height: 1fr; 
         width: 1fr;
+        border: solid {C_ACCENT2};
+        background: {C_BG};
     }}
     
-    SourcePeekPanel {{
-        layer: overlay;
-        dock: bottom;
-        margin-right: 4;
-        margin-bottom: 2;
-        width: 50%;
-        max-width: 80;
-        border: solid {C_ACCENT3};
+    #instr-help {{ 
+        width: 40; 
+        height: 1fr; 
+        background: {C_TEXT}; 
+        border-left: solid {C_ACCENT2}; 
+        padding: 1 1; 
+    }}
+
+    #source-peek {{ 
+        height: 5; 
+        background: {C_TEXT}; 
+        border-top: solid {C_ACCENT2}; 
+        padding: 0 1; 
     }}
     
     #error-view {{ color: #a80000; display: none; margin: 1 2; }}
@@ -112,6 +115,8 @@ class LocalBoltApp(App):
         Binding("r", "refresh", "Recompile", show=True),
         Binding("up", "cursor_up", "Up", show=False, priority=True),
         Binding("down", "cursor_down", "Down", show=False, priority=True),
+        Binding("k", "cursor_up", show=False, priority=True),
+        Binding("j", "cursor_down", show=False, priority=True),
     ]
 
     class StateUpdated(Message):
@@ -130,16 +135,16 @@ class LocalBoltApp(App):
     def compose(self) -> ComposeResult:
         yield MosaicHeader()
         yield Static(" ASSEMBLY EXPLORER ", id="main-title", classes="panel-title")
-        
-        # Wrapper container to hold both the scroll view and the popup
-        yield Container(
-            VerticalScroll(
-                TextArea(id="error-view", read_only=True),
-                # The scroll container for lines
-                AsmScroll(id="asm-container"),
+        yield Vertical(
+            Horizontal(
+                Vertical(
+                    TextArea(id="error-view", read_only=True),
+                    AsmScroll(id="asm-container")
+                ),
+                InstructionHelpPanel(id="instr-help"),
+                id="main-layout"
             ),
-            SourcePeekPanel(id="source-peek"),
-            id="asm-wrapper"
+            SourcePeekPanel(id="source-peek")
         )
         yield Footer()
 
@@ -177,7 +182,6 @@ class LocalBoltApp(App):
         scroll = self.query_one("#asm-container", AsmScroll)
         scroll.query(AsmLine).remove()
 
-        self._cursor = 0
         self._generation = getattr(self, "_generation", 0) + 1
 
         widgets = []
@@ -200,7 +204,9 @@ class LocalBoltApp(App):
         gen = getattr(self, "_generation", 0)
 
         try:
-            self.query_one(f"#asm-line-{gen}-{old}", AsmLine).remove_class("cursor").update(self._render_line(old))
+            old_w = self.query_one(f"#asm-line-{gen}-{old}", AsmLine)
+            old_w.remove_class("cursor")
+            old_w.update(self._render_line(old))
         except: pass
 
         try:
@@ -210,6 +216,7 @@ class LocalBoltApp(App):
             new_w.scroll_visible()
         except: pass
 
+        # Sync bottom panels to cursor position
         self._sync_peek()
 
     def action_cursor_up(self) -> None: self._move_cursor(self._cursor - 1)
@@ -253,10 +260,12 @@ class LocalBoltApp(App):
         try:
             peek = self.query_one("#source-peek", SourcePeekPanel)
             peek.show_for_asm_line(self._cursor)
-        except Exception: pass
-
-    def action_refresh(self) -> None:
-        self.engine.refresh()
+            
+            instr_help = self.query_one("#instr-help", InstructionHelpPanel)
+            if 0 <= self._cursor < len(self._asm_lines):
+                instr_help.show_for_asm_line(self._asm_lines[self._cursor])
+        except Exception:
+            pass
 
     def on_unmount(self) -> None:
         self.engine.stop()
