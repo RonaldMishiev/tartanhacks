@@ -22,6 +22,7 @@ class LocalBoltState:
     
     # Compiler Metadata & Errors
     compiler_output: str = ""
+    user_flags: List[str] = field(default_factory=list)
     diagnostics: List[Diagnostic] = field(default_factory=list)
     last_update: float = 0.0
 

@@ -9,6 +9,7 @@ from ..utils.state import LocalBoltState
 from ..utils.highlighter import build_gutter, highlight_asm_line, severity_styles, INSTRUCTIONS
 from .source_peek import SourcePeekPanel
 from .instruction_help import InstructionHelpPanel
+from .flags_palette import FlagsPopup
 
 # User Palette
 C_BG = "#EBEEEE"
@@ -35,6 +36,7 @@ class LocalBoltApp(App):
         background: {C_BG}; 
         color: {C_TEXT};
         layers: base popups;
+        align: center middle;
     }}
     
     #main-layout {{
@@ -57,6 +59,12 @@ class LocalBoltApp(App):
     
     SourcePeekPanel {{ layer: popups; }}
     InstructionHelpPanel {{ layer: popups; }}
+    FlagsPopup {{ 
+        display: none;
+        layer: popups;
+        margin: 1 1;
+        width: 60;
+    }}
     
     AsmLine {{ width: 100%; height: 1; }}
     AsmLine.sev-low  {{ background: #d1e7dd; }}
@@ -70,6 +78,7 @@ class LocalBoltApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
         Binding("r", "refresh", "Recompile", show=True),
+        Binding("o", "toggle_flags", "Flags", show=True),
         Binding("up", "cursor_up", "Up", show=False, priority=True),
         Binding("down", "cursor_down", "Down", show=False, priority=True),
         Binding("k", "cursor_up", show=False, priority=True),
@@ -101,6 +110,7 @@ class LocalBoltApp(App):
         # Dual Floating Popups
         yield SourcePeekPanel(id="source-peek")
         yield InstructionHelpPanel(id="instr-help")
+        yield FlagsPopup(id="flags-palette")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -182,6 +192,14 @@ class LocalBoltApp(App):
 
     def action_refresh(self) -> None:
         self.engine.refresh()
+
+    def action_toggle_flags(self) -> None:
+        current = " ".join(self.engine.user_flags)
+        self.query_one("#flags-palette", FlagsPopup).show(current)
+
+    def on_flags_popup_flags_changed(self, message: FlagsPopup.FlagsChanged) -> None:
+        new_flags = message.flags.split()
+        self.engine.set_flags(new_flags)
 
     def on_local_bolt_app_state_updated(self, message: StateUpdated) -> None:
         state = message.state

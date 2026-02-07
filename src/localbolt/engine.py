@@ -14,6 +14,7 @@ class BoltEngine:
         self.watcher = FileWatcher()
         self.on_update_callback: Optional[Callable[[LocalBoltState], None]] = None
         self.log_file = "/tmp/localbolt_engine.log"
+        self.user_flags: List[str] = []
 
     def _log(self, msg: str):
         with open(self.log_file, "a") as f:
@@ -29,16 +30,21 @@ class BoltEngine:
     def _on_file_saved(self, path: str):
         self.refresh()
 
+    def set_flags(self, flags: List[str]):
+        self.user_flags = flags
+        self.refresh()
+
     def refresh(self):
-        self._log(f"Refreshing {self.state.source_path}")
+        self._log(f"Refreshing {self.state.source_path} with flags {self.user_flags}")
         try:
             with open(self.state.source_path, "r") as f:
                 content = f.read()
                 self.state.source_code = content
                 self.state.source_lines = content.splitlines()
 
-            asm_raw, stderr = self.driver.compile(self.state.source_path)
+            asm_raw, stderr = self.driver.compile(self.state.source_path, user_flags=self.user_flags)
             self.state.compiler_output = stderr
+            self.state.user_flags = self.user_flags
             self.state.diagnostics = parse_diagnostics(stderr)
 
             if asm_raw:
