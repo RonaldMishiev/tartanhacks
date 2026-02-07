@@ -1,5 +1,5 @@
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Static, TextArea
+from textual.widgets import Header, Footer, Static, TextArea, DataTable
 from textual.containers import Horizontal, Vertical
 from textual.binding import Binding
 from textual.message import Message
@@ -7,18 +7,18 @@ from ..engine import BoltEngine
 from ..utils.state import LocalBoltState
 
 class LocalBoltApp(App):
-    """The main LocalBolt TUI."""
+    """LocalBolt: Focused Assembly Explorer."""
 
     CSS = """
     Screen {
         background: #1e1e1e;
     }
-    #left-pane {
-        width: 50%;
+    #asm-container {
+        width: 70%;
         border-right: heavy $primary;
     }
-    #right-pane {
-        width: 50%;
+    #perf-container {
+        width: 30%;
     }
     .panel-title {
         background: $primary;
@@ -30,15 +30,17 @@ class LocalBoltApp(App):
     TextArea {
         border: none;
     }
+    DataTable {
+        height: 100%;
+    }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
-        Binding("r", "refresh", "Manual Refresh", show=True),
+        Binding("r", "refresh", "Recompile", show=True),
     ]
 
     class StateUpdated(Message):
-        """Internal message to trigger a UI update from any thread."""
         def __init__(self, state: LocalBoltState) -> None:
             super().__init__()
             self.state = state
@@ -46,53 +48,62 @@ class LocalBoltApp(App):
     def __init__(self, source_file: str):
         super().__init__()
         self.engine = BoltEngine(source_file)
-        # The engine will call this function whenever data changes
         self.engine.on_update_callback = lambda state: self.post_message(self.StateUpdated(state))
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Horizontal(
             Vertical(
-                Static(" SOURCE ", classes="panel-title"),
-                TextArea(id="source-view", language="cpp", read_only=True),
-                id="left-pane"
+                Static(" ASSEMBLY OUTPUT ", classes="panel-title"),
+                TextArea(id="asm-view", language="asm", read_only=True),
+                id="asm-container"
             ),
             Vertical(
-                Static(" ASSEMBLY ", classes="panel-title"),
-                TextArea(id="asm-view", language="asm", read_only=True),
-                id="right-pane"
+                Static(" PERFORMANCE (llvm-mca) ", classes="panel-title"),
+                DataTable(id="perf-table"),
+                id="perf-container"
             )
         )
         yield Footer()
 
     def on_mount(self) -> None:
-        """Initialize the engine once the UI is ready."""
+        table = self.query_one("#perf-table", DataTable)
+        table.add_columns("Line", "Instr", "Cycles")
+        table.cursor_type = "row"
+        
         self.engine.start()
-        self.notify(f"Watching {self.engine.state.source_path}")
+        self.notify(f"Monitoring {self.engine.state.source_path}")
 
     def on_local_bolt_app_state_updated(self, message: StateUpdated) -> None:
-        """Handles the StateUpdated message and refreshes widgets."""
         state = message.state
-        source_view = self.query_one("#source-view", TextArea)
         asm_view = self.query_one("#asm-view", TextArea)
+        perf_table = self.query_one("#perf-table", DataTable)
         
-        # update the content
-        source_view.text = state.source_code
+        # 1. Update Assembly
         asm_view.text = state.asm_content
+        
+        # 2. Update Perf Table
+        perf_table.clear()
+        # llvm-mca indices might not align perfectly with cleaned ASM indices
+        # For now, we show the raw instruction stats we parsed
+        for idx, stats in state.perf_stats.items():
+            perf_table.add_row(
+                str(idx),
+                "instr", # We could extract the mnemonic here if needed
+                f"{stats.latency}c"
+            )
         
         if state.compiler_output and "warning" in state.compiler_output.lower():
             self.notify("Recompiled with warnings", severity="warning")
         elif state.compiler_output:
-             self.notify("Recompile failed", severity="error")
+             self.notify("Compilation error", severity="error")
         else:
-            self.notify("Recompile successful")
+            self.notify("Updated")
 
     def action_refresh(self) -> None:
-        """Manual refresh trigger."""
         self.engine.refresh()
 
     def on_unmount(self) -> None:
-        """Ensure the background observer is stopped."""
         self.engine.stop()
 
 def run_tui(source_file: str):

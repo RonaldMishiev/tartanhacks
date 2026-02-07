@@ -8,6 +8,5 @@ int add(int a, int b) {
 
 int main() {
     cout << "Hello World!\n";
-
     return add(10, 20);
 }
