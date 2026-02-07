@@ -1,6 +1,7 @@
 import subprocess
 import tempfile
 import shutil
+import platform
 from pathlib import Path
 from typing import Tuple, List
 from .analyzer import find_compile_commands, get_flags_from_db
@@ -28,17 +29,20 @@ class CompilerDriver:
         # 2. Construct the Command
         # -S: Generate assembly
         # -g: Generate debug info (for mapping)
-        # -masm=intel: Readable syntax
         # -fverbose-asm: Add helpful comments
         # -O3: Default to high optimization (can be overridden)
         command = [
             self.compiler,
             "-S", 
             "-g",
-            "-masm=intel",
             "-fverbose-asm",
             "-O3" 
         ]
+
+        # Portability: Only use Intel syntax on x86 machines
+        arch = platform.machine().lower()
+        if any(x in arch for x in ["x86", "amd64", "i386"]):
+            command.append("-masm=intel")
         
         # Add discovered flags + user flags
         # Note: User flags come last to override defaults
