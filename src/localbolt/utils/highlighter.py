@@ -6,9 +6,9 @@ from rich.text import Text
 C_FOREGROUND = "#EBEEEE"
 C_TEXT = "#191A1A"
 C_MISC1 = "#9FBFC5" # Muted Blue-Grey
-C_MISC2 = "#45d3ee" # Bright Cyan
-C_MISC3 = "#94bfc1" # Pale Teal
-C_MISC4 = "#fecd91" # Pale Orange
+C_MISC2 = "#45d3ee" # Bright Cyan (Instructions)
+C_MISC3 = "#94bfc1" # Pale Teal (Labels)
+C_MISC4 = "#fecd91" # Pale Orange (Registers)
 
 REGISTERS = re.compile(
     r"\b("
