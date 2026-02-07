@@ -11,3 +11,4 @@ compile_commands.json
 output.s
 
 test_project/
+test_project/*
