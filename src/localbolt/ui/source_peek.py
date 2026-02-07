@@ -67,7 +67,7 @@ class SourcePeekPanel(Static):
         line number and display it.
 
         Args:
-            asm_line: 1-based assembly line number.
+            asm_line: 0-based assembly line index.
         """
         src_num = self._asm_mapping.get(asm_line)
 

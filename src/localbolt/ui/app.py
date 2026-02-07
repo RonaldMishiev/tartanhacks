@@ -306,7 +306,7 @@ class LocalBoltApp(App):
         """Sync the source peek panel to the current cursor position."""
         try:
             peek = self.query_one("#source-peek", SourcePeekPanel)
-            peek.show_for_asm_line(self._cursor + 1)
+            peek.show_for_asm_line(self._cursor)
         except Exception:
             pass
 
