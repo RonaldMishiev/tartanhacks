@@ -22,3 +22,7 @@ python -m pip install -e .
 python -m pip install pytest
 python -m pytest tests/test_a.py tests/test_b.py -q
 python -m pytest tests/test_a.py tests/test_a.py -q
+python3 tests/test_lexer.py
+python3 tests/test_watcher.py
+python3 tests/test_config.py
+

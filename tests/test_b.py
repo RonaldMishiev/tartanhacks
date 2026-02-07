@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 from localbolt.parsing import process_assembly, parse_mca_output
 
 RAW_GARBAGE = """
-    .file "test.cpp"
+    .file 1 "test.cpp"
     .text
     .globl _Z3foov
     .type _Z3foov, @function
@@ -36,7 +36,7 @@ def test_pipeline():
     print("--- INPUT ---")
     print(RAW_GARBAGE)
     
-    result, mapping = process_assembly(RAW_GARBAGE)
+    result, mapping = process_assembly(RAW_GARBAGE, "test.cpp")
     
     print("\n--- OUTPUT (Cleaned and Demangled) ---")
     print(result)
@@ -50,9 +50,22 @@ def test_pipeline():
     assert "foo()" in result
     assert "pushq" in result
     
-    # Note: pushq is line 1, and should map to source line 10
+    # Mapping check:
+    # 0: foo(): (no .loc before label usually, or label might not be in mapping if it's the first line)
+    # The logic maps instructions after a .loc
+    # In RAW_GARBAGE:
+    # _Z3foov: (line 0)
+    # .loc 1 10 0
+    # pushq %rbp (line 1) -> maps to 10
+    # .loc 1 11 0
+    # movq %rsp, %rbp (line 2) -> maps to 11
+    # popq %rbp (line 3) -> maps to 11 (previous loc)
+    # .loc 1 12 0
+    # ret (line 4) -> maps to 12
+
     assert mapping[1] == 10
     assert mapping[2] == 11
+    assert mapping[3] == 11
     assert mapping[4] == 12
     
     print("\nAssembly Pipeline Test Passed!")
