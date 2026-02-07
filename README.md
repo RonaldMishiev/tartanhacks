@@ -83,7 +83,7 @@ localbolt --assemblyhelp
 
 ## 🖥️ Interface
 
-<img width="885" height="764" alt="image" src="https://github.com/user-attachments/assets/dfaaa6b9-0b56-4a24-afe7-442dba82a7fd" />
+<img width="1263" height="1206" alt="image" src="https://github.com/user-attachments/assets/33f9d9d4-c792-42ff-b37e-21f2119beebe" />
 
 > **`▶`** marks the cursor line. **`│`** marks sibling assembly lines that originate from the same C++ source line.
 
