@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+env/
+dist/
+build/
+*.egg-info/
+.DS_Store
+.vscode/
+compile_commands.json
+output.s
