@@ -33,8 +33,8 @@ class SourcePeekPanel(Static):
         width: 100%;
         height: auto;
         
-        background: {C_TEXT};
-        color: {C_BG};
+        background: {C_BG};
+        color: {C_TEXT};
         border: solid {C_ACCENT3};
         padding: 0 1;
         display: none;
@@ -75,26 +75,26 @@ class SourcePeekPanel(Static):
             return
 
         text = Text()
-        text.append(" C++ SOURCE ", style=f"bold {C_TEXT} on {C_ACCENT3}")
+        text.append(" C++ SOURCE ", style=f"bold {C_BG} on {C_ACCENT3}")
         text.append("\n")
 
         # 1. Line Above
         if line_num >= 2:
             prev = self._source_lines[line_num - 2]
-            text.append(f" {line_num - 1:>4} │ ", style=f"dim {C_BG}")
-            text.append(prev, style=f"dim {C_BG}")
+            text.append(f" {line_num - 1:>4} │ ", style=f"dim {C_TEXT}")
+            text.append(prev, style=f"dim {C_TEXT}")
             text.append("\n")
 
         # 2. TARGET LINE
         code = self._source_lines[line_num - 1]
         text.append(f"►{line_num:>4} │ ", style=f"bold {C_ACCENT4}")
-        text.append(code, style=f"bold {C_BG} on {C_ACCENT2}")
+        text.append(code, style=f"bold {C_TEXT} on {C_ACCENT2}")
         text.append("\n")
 
         # 3. Line Below
         if line_num < len(self._source_lines):
             nxt = self._source_lines[line_num]
-            text.append(f" {line_num + 1:>4} │ ", style=f"dim {C_BG}")
-            text.append(nxt, style=f"dim {C_BG}")
+            text.append(f" {line_num + 1:>4} │ ", style=f"dim {C_TEXT}")
+            text.append(nxt, style=f"dim {C_TEXT}")
 
         self.update(text)

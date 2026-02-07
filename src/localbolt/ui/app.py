@@ -39,6 +39,10 @@ class LocalBoltApp(App):
         align: center middle;
     }}
     
+    Header {{
+        color: {C_TEXT};
+    }}
+
     #main-layout {{
         height: 1fr;
         width: 100%;
@@ -101,6 +105,7 @@ class LocalBoltApp(App):
         self._sibling_lines: set[int] = set()   # asm indices sharing the same C++ line as cursor
 
     def compose(self) -> ComposeResult:
+        yield Header()
         with Vertical(id="main-layout"):
             yield TextArea(id="error-view", read_only=True)
             yield Vertical(

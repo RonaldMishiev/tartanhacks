@@ -29,8 +29,8 @@ class InstructionHelpPanel(Static):
         height: 3;
         width: 100%;
         
-        background: {C_TEXT};
-        color: {C_BG};
+        background: {C_BG};
+        color: {C_TEXT};
         border: solid {C_ACCENT1};
         padding: 0 1;
         display: none;
@@ -77,8 +77,8 @@ class InstructionHelpPanel(Static):
 
     def _render_help(self, mnemonic: str, desc: str, example: str, meaning: str) -> None:
         text = Text()
-        text.append(f" {mnemonic} ", style=f"bold {C_TEXT} on {C_ACCENT1}")
-        text.append(f" {desc} ", style=f"bold {C_BG}")
+        text.append(f" {mnemonic} ", style=f"bold {C_BG} on {C_ACCENT1}")
+        text.append(f" {desc} ", style=f"bold {C_TEXT}")
         text.append(" │ ", style="dim")
         text.append(f"Example: {example} ", style=C_ACCENT4)
         text.append(" │ ", style="dim")
@@ -87,7 +87,7 @@ class InstructionHelpPanel(Static):
 
     def _render_unknown(self, mnemonic: str) -> None:
         text = Text()
-        text.append(f" {mnemonic} ", style=f"bold {C_TEXT} on {C_ACCENT1}")
+        text.append(f" {mnemonic} ", style=f"bold {C_BG} on {C_ACCENT1}")
         text.append(" No detailed help available for this instruction.", style="dim")
         self.update(text)
         self.display = True
