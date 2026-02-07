@@ -1,0 +1,9 @@
+push    rbp
+        mov     rbp, rsp
+        mov     DWORD PTR [rbp-20], edi
+        mov     DWORD PTR [rbp-4], 3
+        mov     DWORD PTR [rbp-8], 37
+        mov     eax, DWORD PTR [rbp-20]
+        imul    eax, eax
+        pop     rbp
+        ret
