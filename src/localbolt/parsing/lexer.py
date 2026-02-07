@@ -6,9 +6,9 @@ from typing import List, Dict, Tuple, Set, Optional
 
 # 1. NOISE LABELS
 # macOS: Lfunc_begin0, l_.str
-# Linux: .LBB0_1, .Ltmp0
-# Added '\.' to support Linux-style local labels
-RE_NOISE_LABEL = re.compile(r"^\s*(\.?)_*[Ll](\d+|BB|func|tmp|return|set|addr|exception|ttbase|cst|ttbaseref|debug|names|info|line|cu|common|str_off|abbrev)[a-zA-Z0-9_$]*:")
+# Linux: .LBB0_1, .Ltmp0, .LFB0, .LFE0
+# Added 'FB|FE' to support Linux-style function begin/end labels
+RE_NOISE_LABEL = re.compile(r"^\s*(\.?)_*[Ll](\d+|BB|func|tmp|return|set|addr|exception|ttbase|cst|ttbaseref|debug|names|info|line|cu|common|str_off|abbrev|FB|FE)[a-zA-Z0-9_$]*:")
 
 # 2. SYSTEM SYMBOLS
 # Handles std::, GCC/Clang internals, and ABI hooks
@@ -47,7 +47,8 @@ def clean_assembly_with_mapping(raw_asm: str, source_filename: str = None) -> Tu
             fid, path = int(match.group(1)), match.group(2)
             if ctx.source_basename and os.path.basename(path) == ctx.source_basename:
                 ctx.main_file_id = fid
-                break
+                # Don't break, keep looking for potentially better matches if needed
+                # though usually it's unique.
 
     clean_lines = []
     line_map = {}
@@ -95,7 +96,16 @@ def clean_assembly_with_mapping(raw_asm: str, source_filename: str = None) -> Tu
 
         if not in_user_block: continue
 
-        # --- STAGE 4: INSTRUCTION FILTER ---
+        # --- STAGE 4: FILE FILTER ---
+        # Only keep instructions if they belong to our main file
+        # If no .loc seen yet, we assume it's part of the prologue/labels we want
+        if ctx.active_file_id is not None and ctx.active_file_id != ctx.main_file_id:
+            continue
+
+        # --- STAGE 5: INSTRUCTION FILTER ---
+        if stripped == "endbr64":
+            continue
+
         if RE_DIRECTIVE.match(line_content) and not is_label:
             if not RE_DATA_DIRECTIVE.match(line_content):
                 continue
