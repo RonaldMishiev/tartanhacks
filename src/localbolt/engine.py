@@ -14,7 +14,7 @@ class BoltEngine:
         self.watcher = FileWatcher()
         self.on_update_callback: Optional[Callable[[LocalBoltState], None]] = None
         self.log_file = "/tmp/localbolt_engine.log"
-        self.user_flags: List[str] = []
+        self.user_flags: list[str] = []
 
     def _log(self, msg: str):
         with open(self.log_file, "a") as f:
@@ -30,7 +30,7 @@ class BoltEngine:
     def _on_file_saved(self, path: str):
         self.refresh()
 
-    def set_flags(self, flags: List[str]):
+    def set_flags(self, flags: list[str]):
         self.user_flags = flags
         self.refresh()
 
