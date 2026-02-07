@@ -84,7 +84,7 @@ localbolt --assemblyhelp
 
 ## 🖥️ Interface
 
-<img width="875" height="651" alt="image" src="https://github.com/user-attachments/assets/214a0c1b-c653-4cf5-bab6-3a0398108a1c" />
+<img width="1263" height="1206" alt="image" src="https://github.com/user-attachments/assets/33f9d9d4-c792-42ff-b37e-21f2119beebe" />
 
 > **`▶`** marks the cursor line. **`│`** marks sibling assembly lines that originate from the same C++ source line.
 
@@ -95,6 +95,7 @@ localbolt --assemblyhelp
 | `j` / `↓` | Move cursor down |
 | `k` / `↑` | Move cursor up |
 | `r` | Force recompile |
+| `o` | Compiler options |
 | `q` | Quit |
 
 ### Performance Heatmap Colors
