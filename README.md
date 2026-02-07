@@ -95,6 +95,7 @@ localbolt --assemblyhelp
 | `j` / `↓` | Move cursor down |
 | `k` / `↑` | Move cursor up |
 | `r` | Force recompile |
+| `o` | Compiler options |
 | `q` | Quit |
 
 ### Performance Heatmap Colors
