@@ -37,7 +37,7 @@ Built with [Textual](https://textual.textualize.io/) and [Rich](https://rich.rea
 | ⌨️ **Vim-Style Navigation** | `j`/`k`, arrow keys, and `PageUp`/`PageDown` for scrolling through assembly |
 | 🧹 **Clean Output** | Strips compiler directives, debug noise, and system symbols — shows only your code |
 | 🔧 **Auto-Discovery** | Finds `compile_commands.json` in your project and inherits build flags automatically |
-| 📖 **Assembly Reference** | Built-in `--assemblyhelp` quick reference for 20+ common x86 instructions |
+| 📖 **Assembly Reference** | Built-in `--assemblyhelp` reference for 30+ common x86 and ARM64 (Apple Silicon) instructions |
 
 ---
 
@@ -255,19 +255,32 @@ If a `compile_commands.json` is found in the project directory (or `build/`, `ou
 
 ## 🧪 Testing
 
-```bash
-# Run all tests
-pytest
+LocalBolt features a comprehensive suite of unit and integration tests.
 
-# Run specific test suites
-pytest tests/test_c_app.py       # UI app tests (18 tests, fully mocked)
-pytest tests/test_c_main.py      # CLI tests (8 tests)
-pytest tests/test_c_widgets.py   # Widget tests (12 tests)
-pytest tests/unit/               # Unit tests (compiler, config, lexer, parser, asm_help)
-pytest tests/integration/        # Integration tests (engine, lexer, watcher)
+### Run All Tests
+The easiest way to verify the entire project is to use the provided test runner:
+```bash
+./run_all_tests.sh
 ```
 
-The UI tests use a **full mock injection system** that replaces all teammate modules (`BoltEngine`, `LocalBoltState`, `FileWatcher`, `highlighter`) with fakes via `sys.modules` manipulation — ensuring the UI layer is tested in complete isolation.
+### Individual Test Suites
+You can also run specific tests using the virtual environment's Python:
+
+**Unit Tests (Logic & Utilities)**
+```bash
+python3 tests/unit/test_asm_help.py
+python3 tests/unit/test_compiler.py
+python3 tests/unit/test_config.py
+python3 tests/unit/test_lexer_stl.py
+python3 tests/unit/test_parser.py
+```
+
+**Integration Tests (End-to-End & Systems)**
+```bash
+python3 tests/integration/test_engine.py
+python3 tests/integration/test_lexer.py
+python3 tests/integration/test_watcher.py
+```
 
 ---
 
