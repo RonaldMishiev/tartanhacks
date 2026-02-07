@@ -5,8 +5,8 @@ Tests the LocalBoltApp UI wiring logic with MOCKED engine/teammates.
 
 The engine (BoltEngine) is completely mocked — these tests verify
 that Member C's UI layer works correctly in isolation:
-  - Widget tree composition (#asm-view, #perf-table, Header, Footer)
-  - State update message handling
+  - Widget tree composition (#asm-view, #error-view, Header, Footer)
+  - State update message handling (assembly + error modes)
   - action_refresh wiring
   - Error handling
 
@@ -24,7 +24,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from textual.widgets import TextArea, DataTable
+from rich.text import Text
+from textual.widgets import Static, TextArea
 
 
 # ────────────────────────────────────────────────────────────
@@ -105,6 +106,11 @@ class FakeFileWatcher:
         pass
 
 
+def _fake_build_gutter(asm_lines, cycle_counts, width=150):
+    """Return a real Rich Text object so Static.update() doesn't crash."""
+    return Text("\n".join(asm_lines)) if asm_lines else Text("")
+
+
 # ────────────────────────────────────────────────────────────
 # Inject fake teammate modules into sys.modules
 # ────────────────────────────────────────────────────────────
@@ -140,9 +146,23 @@ def _inject_fakes(engine_instance=None):
     watcher_mod.FileWatcher = FakeFileWatcher
 
     # --- localbolt.utils.highlighter ---
+    # build_gutter MUST return a valid Rich renderable (Text), not None!
     hl_mod = types.ModuleType("localbolt.utils.highlighter")
-    hl_mod.highlight_asm = MagicMock(return_value=None)
-    hl_mod.build_gutter = MagicMock(return_value=None)
+    hl_mod.highlight_asm = MagicMock(side_effect=lambda lines: Text("\n".join(lines) if isinstance(lines, list) else lines))
+    hl_mod.build_gutter = MagicMock(side_effect=_fake_build_gutter)
+    # highlight_asm_line and severity_styles needed by the new per-line app.py
+    hl_mod.highlight_asm_line = MagicMock(side_effect=lambda line, bg: Text(line))
+    hl_mod.severity_styles = MagicMock(side_effect=lambda cycles: ("", "") if cycles is None else ("#fff", "on #004400"))
+    # INSTRUCTIONS regex needed by app.py for alignment logic
+    import re
+    hl_mod.INSTRUCTIONS = re.compile(
+        r"\b(movs?[xzbw]?|lea|add|sub|imul|idiv|mul|div|inc|dec"
+        r"|cmp|test|and|or|xor|not|shl|shr|sar|sal"
+        r"|jmp|je|jne|jz|jnz|jg|jge|jl|jle|ja|jae|jb|jbe"
+        r"|call|ret|push|pop|nop|int|syscall|leave|enter"
+        r"|cmov\w+|stp|ldp|stur|ldur|adrp|bl|b\.)\b",
+        re.IGNORECASE,
+    )
 
     # --- localbolt.compiler.driver ---
     driver_mod = types.ModuleType("localbolt.compiler.driver")
@@ -172,9 +192,11 @@ def _inject_fakes(engine_instance=None):
 
     # Force reimport of app.py so it picks up the fakes
     sys.modules.pop("localbolt.ui.app", None)
+    sys.modules.pop("localbolt.ui.source_peek", None)
 
     def cleanup():
         sys.modules.pop("localbolt.ui.app", None)
+        sys.modules.pop("localbolt.ui.source_peek", None)
         for name in fakes:
             if originals[name] is None:
                 sys.modules.pop(name, None)
@@ -202,32 +224,35 @@ class TestAppComposition:
     """Verify the widget tree is assembled correctly."""
 
     @pytest.mark.asyncio
-    async def test_app_has_asm_view(self):
-        """App should have a TextArea with id='asm-view'."""
+    async def test_app_has_asm_lines(self):
+        """App should populate AsmLine widgets after engine state update."""
         tmp = _make_tmp_cpp()
-        fakes, cleanup = _inject_fakes()
+        engine = FakeEngine(tmp)
+        engine.state.asm_content = "push rbp\nmov rbp, rsp\nret"
+        fakes, cleanup = _inject_fakes(engine_instance=engine)
         try:
-            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.app import LocalBoltApp, AsmLine
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
-                av = pilot.app.query_one("#asm-view", TextArea)
-                assert av is not None
-                assert av.read_only is True
+                await pilot.pause()
+                lines = pilot.app.query(AsmLine)
+                assert len(lines) == 3
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_app_has_perf_table(self):
-        """App should have a DataTable with id='perf-table'."""
+    async def test_app_has_error_view(self):
+        """App should have a TextArea with id='error-view'."""
         tmp = _make_tmp_cpp()
         fakes, cleanup = _inject_fakes()
         try:
             from localbolt.ui.app import LocalBoltApp
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
-                pt = pilot.app.query_one("#perf-table", DataTable)
-                assert pt is not None
+                ev = pilot.app.query_one("#error-view", TextArea)
+                assert ev is not None
+                assert ev.read_only is True
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
@@ -256,8 +281,9 @@ class TestAppComposition:
             from localbolt.ui.app import LocalBoltApp
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
-                from textual.widgets import Header, Footer
-                assert pilot.app.query_one(Header) is not None
+                from textual.widgets import Footer
+                from localbolt.ui.app import MosaicHeader
+                assert pilot.app.query_one(MosaicHeader) is not None
                 assert pilot.app.query_one(Footer) is not None
         finally:
             cleanup()
@@ -315,20 +341,19 @@ class TestEngineIntegration:
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_asm_view_gets_content_on_state_update(self):
-        """After engine state update, the asm-view TextArea should have content."""
+    async def test_asm_lines_populated_on_state_update(self):
+        """After engine state update with asm, AsmLine widgets should be created."""
         tmp = _make_tmp_cpp()
         engine = FakeEngine(tmp)
         engine.state.asm_content = "push rbp\nmov rbp, rsp\npop rbp\nret"
         fakes, cleanup = _inject_fakes(engine_instance=engine)
         try:
-            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.app import LocalBoltApp, AsmLine
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
-                asm_view = pilot.app.query_one("#asm-view", TextArea)
-                assert "push rbp" in asm_view.text
-                assert "ret" in asm_view.text
+                lines = pilot.app.query(AsmLine)
+                assert len(lines) == 4
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
@@ -353,40 +378,42 @@ class TestEngineIntegration:
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_perf_table_populated_on_update(self):
-        """After a state update with perf_stats, the DataTable should have rows."""
+    async def test_error_mode_on_diagnostics(self):
+        """When state has errors, error-view should be visible."""
         tmp = _make_tmp_cpp()
         engine = FakeEngine(tmp)
-        engine.state.perf_stats = {
-            1: FakeInstructionStats(latency=2),
-            2: FakeInstructionStats(latency=5),
-        }
+        engine.state.diagnostics = [FakeDiagnostic(severity="error", message="boom")]
+        engine.state.compiler_output = "fatal error: file not found"
         fakes, cleanup = _inject_fakes(engine_instance=engine)
         try:
             from localbolt.ui.app import LocalBoltApp
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
-                pt = pilot.app.query_one("#perf-table", DataTable)
-                assert pt.row_count == 2
+                error_view = pilot.app.query_one("#error-view", TextArea)
+                assert error_view.display is True
+                assert "fatal error" in error_view.text
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_empty_asm_clears_view(self):
-        """If engine returns empty asm, the asm-view should be empty."""
+    async def test_assembly_mode_when_no_errors(self):
+        """When state has no errors, AsmLine widgets should be visible, error-view hidden."""
         tmp = _make_tmp_cpp()
         engine = FakeEngine(tmp)
-        engine.state.asm_content = ""
+        engine.state.asm_content = "push rbp\nret"
+        engine.state.diagnostics = []
         fakes, cleanup = _inject_fakes(engine_instance=engine)
         try:
-            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.app import LocalBoltApp, AsmLine
             app = LocalBoltApp(source_file=tmp)
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
-                asm_view = pilot.app.query_one("#asm-view", TextArea)
-                assert asm_view.text == ""
+                error_view = pilot.app.query_one("#error-view", TextArea)
+                asm_lines = pilot.app.query(AsmLine)
+                assert len(asm_lines) == 2
+                assert error_view.display is False
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)
@@ -408,6 +435,134 @@ class TestEngineIntegration:
             from localbolt.ui.app import LocalBoltApp
             with pytest.raises(RuntimeError, match="Engine not available"):
                 app = LocalBoltApp(source_file=tmp)
+        finally:
+            cleanup()
+            Path(tmp).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_cursor_navigation(self):
+        """Pressing j/k or up/down should move the cursor between AsmLine widgets."""
+        tmp = _make_tmp_cpp()
+        engine = FakeEngine(tmp)
+        engine.state.asm_content = "push rbp\nmov rbp, rsp\npop rbp\nret"
+        fakes, cleanup = _inject_fakes(engine_instance=engine)
+        try:
+            from localbolt.ui.app import LocalBoltApp, AsmLine
+            app = LocalBoltApp(source_file=tmp)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                assert app._cursor == 0
+                # Move down
+                await pilot.press("j")
+                await pilot.pause()
+                assert app._cursor == 1
+                # Move down again
+                await pilot.press("down")
+                await pilot.pause()
+                assert app._cursor == 2
+                # Move up
+                await pilot.press("k")
+                await pilot.pause()
+                assert app._cursor == 1
+                # Move up with arrow
+                await pilot.press("up")
+                await pilot.pause()
+                assert app._cursor == 0
+                # Can't go above 0
+                await pilot.press("up")
+                await pilot.pause()
+                assert app._cursor == 0
+        finally:
+            cleanup()
+            Path(tmp).unlink(missing_ok=True)
+
+
+# ────────────────────────────────────────────────────────────
+# Source Peek tests
+# ────────────────────────────────────────────────────────────
+class TestSourcePeek:
+    """Test the source peek panel integration."""
+
+    @pytest.mark.asyncio
+    async def test_app_has_source_peek(self):
+        """App should have a SourcePeekPanel with id='source-peek'."""
+        tmp = _make_tmp_cpp()
+        fakes, cleanup = _inject_fakes()
+        try:
+            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.source_peek import SourcePeekPanel
+            app = LocalBoltApp(source_file=tmp)
+            async with app.run_test(size=(120, 40)) as pilot:
+                sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
+                assert sp is not None
+        finally:
+            cleanup()
+            Path(tmp).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_source_peek_updates_with_mapping(self):
+        """After state update with mapping, source peek should show C++ code."""
+        tmp = _make_tmp_cpp("int main() {\n    return 42;\n}\n")
+        engine = FakeEngine(tmp)
+        engine.state.source_lines = ["int main() {", "    return 42;", "}"]
+        engine.state.asm_content = "push rbp\nmov rbp, rsp\nmov eax, 42\npop rbp\nret"
+        engine.state.asm_mapping = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
+        fakes, cleanup = _inject_fakes(engine_instance=engine)
+        try:
+            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.source_peek import SourcePeekPanel
+            app = LocalBoltApp(source_file=tmp)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
+                # The peek should have been given the mapping
+                assert sp._source_lines == ["int main() {", "    return 42;", "}"]
+                assert sp._asm_mapping == {1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
+        finally:
+            cleanup()
+            Path(tmp).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_source_peek_show_for_line(self):
+        """SourcePeekPanel.show_for_asm_line should look up the correct source."""
+        tmp = _make_tmp_cpp("int main() {\n    return 42;\n}\n")
+        engine = FakeEngine(tmp)
+        engine.state.source_lines = ["int main() {", "    return 42;", "}"]
+        engine.state.asm_content = "push rbp\nmov rbp, rsp\nmov eax, 42\npop rbp\nret"
+        engine.state.asm_mapping = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
+        fakes, cleanup = _inject_fakes(engine_instance=engine)
+        try:
+            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.source_peek import SourcePeekPanel
+            app = LocalBoltApp(source_file=tmp)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
+                sp.show_for_asm_line(3)
+                assert sp._current_source_line == 2
+        finally:
+            cleanup()
+            Path(tmp).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_source_peek_empty_mapping(self):
+        """With no mapping, source peek should show placeholder."""
+        tmp = _make_tmp_cpp()
+        engine = FakeEngine(tmp)
+        engine.state.source_lines = []
+        engine.state.asm_mapping = {}
+        engine.state.asm_content = ""
+        fakes, cleanup = _inject_fakes(engine_instance=engine)
+        try:
+            from localbolt.ui.app import LocalBoltApp
+            from localbolt.ui.source_peek import SourcePeekPanel
+            app = LocalBoltApp(source_file=tmp)
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                sp = pilot.app.query_one("#source-peek", SourcePeekPanel)
+                sp.update_context(source_lines=[], asm_mapping={})
+                sp.show_for_asm_line(1)
+                assert sp._current_source_line is None
         finally:
             cleanup()
             Path(tmp).unlink(missing_ok=True)

@@ -86,6 +86,12 @@ def _highlight_asm_line(line: str, bg: str) -> Text:
         i = j
     return segment
 
+
+# Public aliases for asm_app.py and other consumers
+highlight_asm_line = _highlight_asm_line
+severity_styles = _severity_styles
+
+
 def build_gutter(asm_lines: list[str], cycle_counts: dict[int, int], width: int = 150) -> Text:
     gutter_width = 6
     result = Text(no_wrap=True)
