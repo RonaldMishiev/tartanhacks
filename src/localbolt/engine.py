@@ -1,22 +1,25 @@
 from typing import Callable, Optional
 from .compiler.driver import CompilerDriver
-from .parsing import process_assembly, parse_mca_output, parse_diagnostics
+from .parsing import process_assembly, parse_mca_output, parse_diagnostics, InstructionStats
 from .utils.state import LocalBoltState
 from .utils.watcher import FileWatcher
 import time
+import shutil
+import os
 
 class BoltEngine:
-    """
-    The 'Brain' that coordinates compilation, parsing, and state updates.
-    """
     def __init__(self, source_file: str):
         self.state = LocalBoltState(source_path=source_file)
         self.driver = CompilerDriver()
         self.watcher = FileWatcher()
         self.on_update_callback: Optional[Callable[[LocalBoltState], None]] = None
+        self.log_file = "/tmp/localbolt_engine.log"
+
+    def _log(self, msg: str):
+        with open(self.log_file, "a") as f:
+            f.write(f"[{time.time()}] {msg}\n")
 
     def start(self):
-        """Initial compile and start watching."""
         self.refresh()
         self.watcher.start_watching(self.state.source_path, self._on_file_saved)
 
@@ -27,52 +30,41 @@ class BoltEngine:
         self.refresh()
 
     def refresh(self):
-        """
-        Runs the full pipeline:
-        1. Read Source
-        2. Compile to ASM
-        3. Parse Diagnostics (Errors/Warnings)
-        4. Clean/Map ASM
-        5. Analyze with MCA (if available)
-        6. Trigger UI update
-        """
+        self._log(f"Refreshing {self.state.source_path}")
         try:
-            # 1. Read source
             with open(self.state.source_path, "r") as f:
                 content = f.read()
                 self.state.source_code = content
                 self.state.source_lines = content.splitlines()
 
-            # 2. Compile
             asm_raw, stderr = self.driver.compile(self.state.source_path)
-            
-            # 3. Handle Diagnostics
             self.state.compiler_output = stderr
             self.state.diagnostics = parse_diagnostics(stderr)
 
-            # 4. Handle Assembly (Only if compilation didn't fail hard)
             if asm_raw:
-                clean_asm, mapping = process_assembly(asm_raw, self.state.source_path)
+                # 1. Get both demangled and mangled cleaned versions
+                clean_asm, mapping, mangled_asm = process_assembly(asm_raw, self.state.source_path)
                 self.state.update_asm(clean_asm, mapping)
 
-                # 5. Performance Analysis
-                mca_raw = self.driver.analyze_perf(asm_raw)
-                if mca_raw and not mca_raw.startswith("Error"):
+                # 2. Run performance analysis on the MANGLED code
+                # (llvm-mca doesn't like C++ symbols like 'add(int, int)')
+                self._log("Running analyze_perf on mangled ASM...")
+                mca_raw = self.driver.analyze_perf(mangled_asm)
+                self._log(f"MCA Raw Length: {len(mca_raw) if mca_raw else 0}")
+                
+                if mca_raw and "Instruction Info:" in mca_raw:
                     perf_stats = parse_mca_output(mca_raw)
+                    self._log(f"Parsed Stats Count: {len(perf_stats)}")
                     self.state.update_perf(perf_stats, mca_raw)
                 else:
-                    self.state.update_perf({}, mca_raw)
-            else:
-                # If no assembly, clear old data so UI knows to switch to error view
-                self.state.update_asm("", {})
+                    self._log(f"MCA failed. Sample: {mca_raw[:100] if mca_raw else 'None'}")
+                    self.state.update_perf({}, mca_raw or "")
 
-            self.state.last_update = time.time()
-            
-            # 6. Notify the UI if a callback is registered
             if self.on_update_callback:
                 self.on_update_callback(self.state)
 
         except Exception as e:
+            self._log(f"Refresh Error: {str(e)}")
             self.state.compiler_output = f"Internal Engine Error: {str(e)}"
             if self.on_update_callback:
                 self.on_update_callback(self.state)

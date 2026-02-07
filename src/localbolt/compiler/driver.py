@@ -125,12 +125,25 @@ class CompilerDriver:
         """
         Runs llvm-mca on the generated assembly string.
         """
-        if not shutil.which("llvm-mca"):
+        mca_path = shutil.which("llvm-mca")
+        
+        # Fallback for macOS Homebrew users where llvm is often not linked
+        if not mca_path:
+            hb_paths = [
+                "/opt/homebrew/opt/llvm/bin/llvm-mca",
+                "/usr/local/opt/llvm/bin/llvm-mca"
+            ]
+            for p in hb_paths:
+                if Path(p).exists():
+                    mca_path = p
+                    break
+
+        if not mca_path:
             return "Error: llvm-mca not installed."
             
         try:
             process = subprocess.Popen(
-                ["llvm-mca"],
+                [mca_path],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

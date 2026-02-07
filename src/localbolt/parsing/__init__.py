@@ -14,8 +14,11 @@ def simplify_symbols(text: str) -> str:
     text = RE_ABI_TAGS.sub("", text)
     return text
 
-def process_assembly(raw_asm: str, source_filename: str = None) -> Tuple[str, Dict[int, int]]:
-    cleaned, mapping = clean_assembly_with_mapping(raw_asm, source_filename)
-    demangled = demangle_stream(cleaned)
+def process_assembly(raw_asm: str, source_filename: str = None) -> Tuple[str, Dict[int, int], str]:
+    """
+    Returns: (demangled_asm, mapping, mangled_cleaned_asm)
+    """
+    cleaned_mangled, mapping = clean_assembly_with_mapping(raw_asm, source_filename)
+    demangled = demangle_stream(cleaned_mangled)
     final_asm = simplify_symbols(demangled)
-    return final_asm, mapping
+    return final_asm, mapping, cleaned_mangled

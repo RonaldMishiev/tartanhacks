@@ -8,6 +8,7 @@ REGISTERS = re.compile(
     r"|e[abcd]x|e[sd]i|e[bs]p"
     r"|[abcd][hl]|[abcd]x|[sd]il?|[bs]pl?"
     r"|xmm[0-9]+|ymm[0-9]+|zmm[0-9]+"
+    r"|[wx][0-9]{1,2}|sp|fp|lr" # Added ARM registers
     r")\b",
     re.IGNORECASE,
 )
@@ -26,12 +27,11 @@ INSTRUCTIONS = re.compile(
     r"|cmp|test|and|or|xor|not|shl|shr|sar|sal"
     r"|jmp|je|jne|jz|jnz|jg|jge|jl|jle|ja|jae|jb|jbe"
     r"|call|ret|push|pop|nop|int|syscall|leave|enter"
-    r"|cmov\w+|stp|ldp|stur|ldur|adrp|bl"
+    r"|cmov\w+|stp|ldp|stur|ldur|adrp|bl|b\."
     r")\b",
     re.IGNORECASE,
 )
 
-<<<<<<< HEAD
 
 def highlight_asm(cleaned_asm: list[str]) -> Text:
     """
@@ -88,64 +88,62 @@ def highlight_asm(cleaned_asm: list[str]) -> Text:
     return text
 
 
-def severity_styles(cycles: int | None) -> tuple[str, str]:
-=======
 def _severity_styles(cycles: int | None) -> tuple[str, str]:
->>>>>>> 11c028b (updated highlighter)
     """Return (foreground_style, background_color) for a given cycle count."""
     if cycles is None:
         return ("", "")
     if cycles <= 1:
-        return ("#ffffff", "on #004400") # White on Green
+        return ("#ffffff", "on #004400") # Green
     if cycles <= 4:
-        return ("#ffffff", "on #664400") # White on Amber
-    return ("#ffffff", "on #880000")    # White on Red
+        return ("#ffffff", "on #664400") # Amber
+    return ("#ffffff", "on #880000")    # Red
 
-<<<<<<< HEAD
-def highlight_asm_line(line: str, bg: str) -> Text:
+
+def _highlight_asm_line(line: str, bg: str) -> Text:
     """
     Syntax-highlight a single assembly line and apply a background tint.
 
-    Tokens are styled with the same asm color scheme (instructions blue,
-    registers bold red, etc.) layered on top of the severity background.
+    Tokens are styled with the same asm color scheme layered on top of
+    the severity background.
     """
     segment = Text()
     stripped = line.lstrip()
 
     # Comments: entire line bright_black
-=======
-def _highlight_asm_line(line: str, bg: str) -> Text:
-    segment = Text()
-    stripped = line.lstrip()
-
->>>>>>> 11c028b (updated highlighter)
     if stripped.startswith("#") or stripped.startswith(";"):
         segment.append(line, style=f"bright_black {bg}".strip())
         return segment
 
+    # Walk through the line applying token-level highlighting
     token_styles: list[str | None] = [None] * len(line)
 
+    # Labels
     label_match = re.match(r"^(\s*\.?\w+\s*:)", line)
     if label_match:
         for j in range(label_match.start(), label_match.end()):
             token_styles[j] = "bold yellow"
 
+    # Instructions
     for m in INSTRUCTIONS.finditer(line):
         for j in range(m.start(), m.end()):
             token_styles[j] = "blue"
 
+    # Size keywords
     for m in SIZE_KEYWORDS.finditer(line):
         for j in range(m.start(), m.end()):
             token_styles[j] = "magenta"
 
+    # Numeric literals
     for m in NUMBERS.finditer(line):
         for j in range(m.start(), m.end()):
             token_styles[j] = "cyan"
     
+    # Registers
     for m in REGISTERS.finditer(line):
         for j in range(m.start(), m.end()):
             token_styles[j] = "bold red"
 
+    # Emit characters
     i = 0
     while i < len(line):
         cur_style = token_styles[i]
@@ -158,34 +156,32 @@ def _highlight_asm_line(line: str, bg: str) -> Text:
 
     return segment
 
-def build_gutter(asm_lines: list[str], cycle_counts: dict[int, int], width: int = 120) -> Text:
+
+def build_gutter(asm_lines: list[str], cycle_counts: dict[int, int], width: int = 150) -> Text:
     """
-    Builds highlighted ASM with fixed-width lines to prevent wrapping and show heat map.
+    Builds highlighted ASM where the background color spans the entire line width.
     """
     gutter_width = 6
-    result = Text(no_wrap=True) # Instruct Rich not to wrap
+    result = Text(no_wrap=True)
 
     for i, line in enumerate(asm_lines):
         line_num = i + 1
         cycles = cycle_counts.get(line_num)
-        fg_style, bg = severity_styles(cycles)
+        fg_style, bg = _severity_styles(cycles)
 
-<<<<<<< HEAD
-        # Syntax-highlighted asm text with severity background
-        result.append_text(highlight_asm_line(line, bg))
-=======
+        # 1. Add instructions with background
         line_text = _highlight_asm_line(line, bg)
         result.append_text(line_text)
->>>>>>> 11c028b (updated highlighter)
 
-        # Pad each line to the fixed width so the background color spans the full width
+        # 2. Add padding with background
         padding_needed = max(1, width - len(line) - gutter_width)
         result.append(" " * padding_needed, style=bg.strip() or None)
 
+        # 3. Add cycle count WITH same background
         if cycles is not None:
             result.append(f"{cycles:>{gutter_width}}c", style=f"{fg_style} {bg}".strip())
         else:
-            result.append(" " * (gutter_width + 1))
+            result.append(" " * (gutter_width + 1), style=bg.strip() or None)
 
         if line_num < len(asm_lines):
             result.append("\n")
