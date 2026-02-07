@@ -11,8 +11,7 @@
 
 <p align="center">
   <b>A local, offline Compiler Explorer — right in your terminal.</b><br/>
-  <sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub><br/>
-  <a href="https://pages.cs.wisc.edu/~samad/localbolt/localbolt.html">Visit the Project Website</a>
+  <sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub>
 </p>
 
 <p align="center">
