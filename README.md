@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" />
   <img src="https://img.shields.io/badge/TUI-Textual-45d3ee?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-191A1A?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Tests-51%20passing-d1e7dd?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Tests-50%20passing-d1e7dd?style=for-the-badge" />
 </p>
 
 <h1 align="center">
@@ -33,8 +33,10 @@ Built with [Textual](https://textual.textualize.io/) and [Rich](https://rich.rea
 | 🔄 **Live Reload** | Watches your `.cpp` file with [Watchdog](https://github.com/gorakhargosh/watchdog) — assembly refreshes instantly on save |
 | 🎨 **Syntax Highlighting** | Color-coded assembly: <span style="color:#45d3ee">instructions</span>, <span style="color:#fecd91">registers</span>, <span style="color:#94bfc1">labels</span>, <span style="color:#a37acc">size keywords</span>, and <span style="color:#666">numbers</span> |
 | 📊 **Performance Heatmap** | Per-instruction cycle counts from `llvm-mca` with a green → amber → red severity gradient |
-| 🔗 **Source ↔ Assembly Mapping** | Bottom peek panel shows exactly which C++ line generated the current assembly |
-| ⌨️ **Vim-Style Navigation** | `j`/`k`, arrow keys, and `PageUp`/`PageDown` for scrolling through assembly |
+| 🔗 **Source ↔ Assembly Mapping** | Floating peek popup shows exactly which C++ line generated the current assembly |
+| 🔗 **Sibling Highlighting** | Assembly lines from the same C++ source line get a `│` gutter indicator when selected |
+| 📖 **Instruction Help** | Floating popup with description, example, and meaning for the instruction under the cursor |
+| ⌨️ **Vim-Style Navigation** | `j`/`k` and arrow keys for scrolling through assembly |
 | 🧹 **Clean Output** | Strips compiler directives, debug noise, and system symbols — shows only your code |
 | 🔧 **Auto-Discovery** | Finds `compile_commands.json` in your project and inherits build flags automatically |
 | 📖 **Assembly Reference** | Built-in `--assemblyhelp` reference for 30+ common x86 and ARM64 (Apple Silicon) instructions |
@@ -83,11 +85,9 @@ localbolt --assemblyhelp
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  LOCALBOLT ░░░░░░░░░░░░░░░░░░░░░░░░░░  (gradient header)    │
-│                  ASSEMBLY EXPLORER | 9 instructions analyzed │
 │ ┌──────────────────────────────────────────────────────────┐ │
 │ │ ▶ push   rbp                                        1c  │ │
-│ │   mov    rbp, rsp                                   1c  │ │
+│ │ │ mov    rbp, rsp                                   1c  │ │
 │ │   mov    DWORD PTR [rbp-4], edi                     1c  │ │
 │ │   mov    DWORD PTR [rbp-8], esi                     1c  │ │
 │ │   mov    eax, DWORD PTR [rbp-4]                     3c  │ │
@@ -97,14 +97,19 @@ localbolt --assemblyhelp
 │ │   pop    rbp                                        1c  │ │
 │ │   ret                                               1c  │ │
 │ └──────────────────────────────────────────────────────────┘ │
-│ ┌─ Source Peek ───────────────────────────────────────────┐  │
-│ │     4 │ int add(int a, int b) {                        │  │
-│ │ ►   5 │     return a % b;                              │  │
-│ │     6 │ }                                              │  │
+│ ┌─ Instruction Help ─────────────────────────────────────┐   │
+│ │  PUSH  Push value onto stack │ Example: push rbp       │   │
+│ └────────────────────────────────────────────────────────────┘│
+│ ┌─ C++ SOURCE ───────────────────────────────────────────┐   │
+│ │     4 │ int add(int a, int b) {                        │   │
+│ │ ►   5 │     return a % b;                              │   │
+│ │     6 │ }                                              │   │
 │ └────────────────────────────────────────────────────────────┘│
 │  Q Quit  R Recompile                                         │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+> **`▶`** marks the cursor line. **`│`** marks sibling assembly lines that originate from the same C++ source line.
 
 ### Keybindings
 
@@ -112,8 +117,6 @@ localbolt --assemblyhelp
 |---|---|
 | `j` / `↓` | Move cursor down |
 | `k` / `↑` | Move cursor up |
-| `PageDown` | Jump 20 lines down |
-| `PageUp` | Jump 20 lines up |
 | `r` | Force recompile |
 | `q` | Quit |
 
@@ -162,7 +165,8 @@ src/localbolt/
 │
 ├── ui/                      # 🎨 Terminal User Interface
 │   ├── app.py               #   LocalBoltApp — main Textual application
-│   ├── source_peek.py       #   SourcePeekPanel — C++ context for current asm line
+│   ├── source_peek.py       #   SourcePeekPanel — floating C++ context popup
+│   ├── instruction_help.py  #   InstructionHelpPanel — floating asm instruction reference
 │   └── widgets.py           #   AssemblyView & StatusBar reusable widgets
 │
 ├── asm_ui/                  # 🧪 Standalone assembly viewer (development tool)
@@ -225,8 +229,9 @@ The result: clean, readable assembly with an accurate `{asm_line → source_line
 `LocalBoltApp` renders the state into an interactive TUI:
 - **Per-line `AsmLine` widgets** for individual cursor highlighting & CSS severity classes
 - **`AsmScroll`** — a `VerticalScroll` with disabled bindings so the app handles cursor movement with priority
-- **`SourcePeekPanel`** — walks the asm→source mapping (with backward lookup) to show 3 lines of C++ context
-- **`MosaicHeader`** — gradient header rendered character-by-character from `#45d3ee` → `#9FBFC5`
+- **Sibling line indicators** — when cursor is on an asm line, all other asm lines from the same C++ source get a `│` gutter mark
+- **`SourcePeekPanel`** — floating popup that walks the asm→source mapping (with backward lookup) to show 3 lines of C++ context
+- **`InstructionHelpPanel`** — floating popup that shows the description, example, and meaning for the instruction under the cursor
 - **Generation-based widget IDs** (`asm-line-{gen}-{idx}`) to prevent `DuplicateIds` errors on refresh
 
 ---
@@ -268,18 +273,17 @@ You can also run specific tests using the virtual environment's Python:
 
 **Unit Tests (Logic & Utilities)**
 ```bash
-python3 tests/unit/test_asm_help.py
-python3 tests/unit/test_compiler.py
-python3 tests/unit/test_config.py
-python3 tests/unit/test_lexer_stl.py
-python3 tests/unit/test_parser.py
+pytest tests/unit/
 ```
 
 **Integration Tests (End-to-End & Systems)**
 ```bash
-python3 tests/integration/test_engine.py
-python3 tests/integration/test_lexer.py
-python3 tests/integration/test_watcher.py
+pytest tests/integration/
+```
+
+**UI Tests (App, Widgets, Source Peek)**
+```bash
+pytest tests/test_c_app.py tests/test_c_main.py tests/test_c_widgets.py
 ```
 
 ---
