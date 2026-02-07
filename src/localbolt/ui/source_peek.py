@@ -10,10 +10,10 @@ from textual.widgets import Static
 # User Palette
 C_BG = "#EBEEEE"
 C_TEXT = "#191A1A"
-C_ACCENT1 = "#45d3ee" # Cyan
-C_ACCENT2 = "#9FBFC5" # Muted Blue
-C_ACCENT3 = "#94bfc1" # Teal
-C_ACCENT4 = "#fecd91" # Orange
+C_ACCENT1 = "#007b9a" # Strong Cyan
+C_ACCENT2 = "#9FBFC5" # Muted Blue-Grey
+C_ACCENT3 = "#00796b" # Strong Teal
+C_ACCENT4 = "#af5f00" # Strong Orange
 
 class SourcePeekPanel(Static):
     """
