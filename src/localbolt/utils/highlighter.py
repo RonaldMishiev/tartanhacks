@@ -88,7 +88,7 @@ def highlight_asm(cleaned_asm: list[str]) -> Text:
     return text
 
 
-def _severity_styles(cycles: int | None) -> tuple[str, str]:
+def severity_styles(cycles: int | None) -> tuple[str, str]:
     """Return (foreground_style, background_color) for a given cycle count."""
     if cycles is None:
         return ("", "")
@@ -99,7 +99,7 @@ def _severity_styles(cycles: int | None) -> tuple[str, str]:
     return ("#882222", "on #301010")
 
 
-def _highlight_asm_line(line: str, bg: str) -> Text:
+def highlight_asm_line(line: str, bg: str) -> Text:
     """
     Syntax-highlight a single assembly line and apply a background tint.
 
@@ -184,10 +184,10 @@ def build_gutter(asm_lines: list[str], cycle_counts: dict[int, int]) -> Text:
     for i, line in enumerate(asm_lines):
         line_num = i + 1
         cycles = cycle_counts.get(line_num)
-        fg_style, bg = _severity_styles(cycles)
+        fg_style, bg = severity_styles(cycles)
 
         # Syntax-highlighted asm text with severity background
-        result.append_text(_highlight_asm_line(line, bg))
+        result.append_text(highlight_asm_line(line, bg))
 
         # Padding between asm and gutter (same background)
         padding_needed = max(1, term_width - len(line) - gutter_width)
