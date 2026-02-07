@@ -47,7 +47,6 @@ class BoltEngine:
                 self.state.update_asm(clean_asm, mapping)
 
                 # 2. Run performance analysis on the MANGLED code
-                # (llvm-mca doesn't like C++ symbols like 'add(int, int)')
                 self._log("Running analyze_perf on mangled ASM...")
                 mca_raw = self.driver.analyze_perf(mangled_asm)
                 self._log(f"MCA Raw Length: {len(mca_raw) if mca_raw else 0}")

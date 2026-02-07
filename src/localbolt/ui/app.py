@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, TextArea
-from textual.containers import VerticalScroll, Horizontal, Vertical
+from textual.containers import VerticalScroll, Horizontal, Vertical, Container
 from textual.binding import Binding
 from textual.message import Message
 from rich.text import Text
@@ -10,20 +10,6 @@ from ..utils.highlighter import build_gutter, highlight_asm_line, severity_style
 from .source_peek import SourcePeekPanel
 from .instruction_help import InstructionHelpPanel
 
-def _severity_class(cycles: int | None) -> str:
-    """Map cycle count to a CSS class name for full-width background tint."""
-    if cycles is None: return ""
-    if cycles <= 1: return "sev-low"
-    if cycles <= 4: return "sev-med"
-    return "sev-high"
-
-class AsmLine(Static):
-    """A single assembly line widget for per-line cursor navigation."""
-
-class AsmScroll(VerticalScroll):
-    """VerticalScroll with up/down disabled so the App handles cursor movement."""
-    BINDINGS = []
-
 # User Palette
 C_BG = "#EBEEEE"
 C_TEXT = "#191A1A"
@@ -32,71 +18,45 @@ C_ACCENT2 = "#9FBFC5" # Muted Blue
 C_ACCENT3 = "#94bfc1" # Teal
 C_ACCENT4 = "#fecd91" # Orange
 
-class MosaicHeader(Static):
-    """A header with a horizontal gradient to match the Mosaic theme."""
-    def render(self) -> Text:
-        text = " LOCALBOLT " + " " * 120
-        rich_text = Text(text, style="bold italic")
-        start = (69, 211, 238)
-        end = (159, 191, 197)
-        for i in range(len(text)):
-            ratio = i / len(text)
-            r = int(start[0] + (end[0] - start[0]) * ratio)
-            g = int(start[1] + (end[1] - start[1]) * ratio)
-            b = int(start[2] + (end[2] - start[2]) * ratio)
-            color = f"#{r:02x}{g:02x}{b:02x}"
-            rich_text.stylize(color, i, i+1)
-        return rich_text
+def _severity_class(cycles: int | None) -> str:
+    if cycles is None: return ""
+    if cycles <= 1: return "sev-low"
+    if cycles <= 4: return "sev-med"
+    return "sev-high"
+
+class AsmLine(Static): pass
+class AsmScroll(VerticalScroll): BINDINGS = []
 
 class LocalBoltApp(App):
-    """Modern, Light-Themed Mosaic LocalBolt TUI."""
+    """Modern Assembly Explorer with Dual Floating Popups."""
 
     CSS = f"""
     Screen {{ 
         background: {C_BG}; 
         color: {C_TEXT};
+        layers: base popups;
     }}
     
-    MosaicHeader {{
-        height: 1;
-        background: {C_TEXT};
-        width: 100%;
-    }}
-
     #main-layout {{
         height: 1fr;
-        margin: 1 2;
+        width: 100%;
+        layer: base;
     }}
 
-    #asm-container {{ 
+    #asm-container-outer {{ 
         height: 1fr; 
-        width: 1fr;
+        width: 100%; 
         border: solid {C_ACCENT2};
         background: {C_BG};
-    }}
-    
-    #instr-help {{ 
-        width: 40; 
-        height: 1fr; 
-        background: {C_TEXT}; 
-        border-left: solid {C_ACCENT2}; 
-        padding: 1 1; 
+        margin: 1 1;
     }}
 
-    #source-peek {{ 
-        height: 5; 
-        background: {C_TEXT}; 
-        border-top: solid {C_ACCENT2}; 
-        padding: 0 1; 
-    }}
+    #asm-container {{ height: 1fr; width: 1fr; }}
     
     #error-view {{ color: #a80000; display: none; margin: 1 2; }}
     
-    .panel-title {{
-        color: {C_ACCENT3};
-        text-align: center;
-        margin-top: 1;
-    }}
+    SourcePeekPanel {{ layer: popups; }}
+    InstructionHelpPanel {{ layer: popups; }}
     
     AsmLine {{ width: 100%; height: 1; }}
     AsmLine.sev-low  {{ background: #d1e7dd; }}
@@ -104,10 +64,7 @@ class LocalBoltApp(App):
     AsmLine.sev-high {{ background: #f8d7da; }}
     AsmLine.cursor   {{ background: {C_ACCENT2}; }}
     
-    Footer {{
-        background: {C_TEXT};
-        color: {C_ACCENT1};
-    }}
+    Footer {{ background: {C_TEXT}; color: {C_ACCENT1}; }}
     """
 
     BINDINGS = [
@@ -133,90 +90,65 @@ class LocalBoltApp(App):
         self._cycle_counts: dict[int, int] = {}
 
     def compose(self) -> ComposeResult:
-        yield MosaicHeader()
-        yield Static(" ASSEMBLY EXPLORER ", id="main-title", classes="panel-title")
-        yield Vertical(
-            Horizontal(
-                Vertical(
-                    TextArea(id="error-view", read_only=True),
-                    AsmScroll(id="asm-container")
-                ),
-                InstructionHelpPanel(id="instr-help"),
-                id="main-layout"
-            ),
-            SourcePeekPanel(id="source-peek")
-        )
+        with Vertical(id="main-layout"):
+            yield TextArea(id="error-view", read_only=True)
+            yield Vertical(
+                AsmScroll(id="asm-container"),
+                id="asm-container-outer"
+            )
+        # Dual Floating Popups
+        yield SourcePeekPanel(id="source-peek")
+        yield InstructionHelpPanel(id="instr-help")
         yield Footer()
 
     def on_mount(self) -> None:
         self.engine.start()
 
     def _render_line(self, idx: int) -> Text:
+        if idx >= len(self._asm_lines): return Text("")
         line = self._asm_lines[idx]
         line_num = idx + 1
         cycles = self._cycle_counts.get(line_num)
         fg, _ = severity_styles(cycles)
-        
-        # Fixed width to force background spanning
         width = 200 
-
         row = Text()
-        if idx == self._cursor:
-            row.append("▶ ", style=f"bold {C_ACCENT4}")
-        else:
-            row.append("  ")
-
+        row.append("▶ " if idx == self._cursor else "  ", style=f"bold {C_ACCENT4}")
         row.append_text(highlight_asm_line(line, ""))
-        
         gutter_text = f"{cycles}c" if cycles is not None else ""
         used = 2 + len(line) + len(gutter_text)
         padding = max(1, width - used)
         row.append(" " * padding)
-
-        if cycles is not None:
-            row.append(gutter_text, style=fg)
-
+        if cycles is not None: row.append(gutter_text, style=fg)
         return row
 
     def _populate_asm_lines(self) -> None:
         scroll = self.query_one("#asm-container", AsmScroll)
         scroll.query(AsmLine).remove()
-
         self._generation = getattr(self, "_generation", 0) + 1
-
         widgets = []
         for i in range(len(self._asm_lines)):
             widget = AsmLine(self._render_line(i), id=f"asm-line-{self._generation}-{i}")
             sev = _severity_class(self._cycle_counts.get(i + 1))
-            if sev:
-                widget.add_class(sev)
-            if i == self._cursor:
-                widget.add_class("cursor")
+            if sev: widget.add_class(sev)
+            if i == self._cursor: widget.add_class("cursor")
             widgets.append(widget)
-
-        if widgets:
-            scroll.mount(*widgets)
+        if widgets: scroll.mount(*widgets)
 
     def _move_cursor(self, new: int) -> None:
         if new < 0 or new >= len(self._asm_lines): return
-        old = self._cursor
-        self._cursor = new
+        old, self._cursor = self._cursor, new
         gen = getattr(self, "_generation", 0)
-
         try:
             old_w = self.query_one(f"#asm-line-{gen}-{old}", AsmLine)
             old_w.remove_class("cursor")
             old_w.update(self._render_line(old))
         except: pass
-
         try:
             new_w = self.query_one(f"#asm-line-{gen}-{new}", AsmLine)
             new_w.add_class("cursor")
             new_w.update(self._render_line(new))
             new_w.scroll_visible()
         except: pass
-
-        # Sync bottom panels to cursor position
         self._sync_peek()
 
     def action_cursor_up(self) -> None: self._move_cursor(self._cursor - 1)
@@ -224,22 +156,12 @@ class LocalBoltApp(App):
 
     def on_local_bolt_app_state_updated(self, message: StateUpdated) -> None:
         state = message.state
-        error_view = self.query_one("#error-view", TextArea)
-        title = self.query_one("#main-title", Static)
-        scroll = self.query_one("#asm-container", AsmScroll)
-
+        error_view, scroll = self.query_one("#error-view", TextArea), self.query_one("#asm-container", AsmScroll)
         if state.has_errors:
-            scroll.display = False
-            error_view.display = True
+            scroll.display, error_view.display = False, True
             error_view.text = state.compiler_output
-            title.update(" COMPILATION ERROR ")
-            title.styles.color = "#a80000"
         else:
-            error_view.display = False
-            scroll.display = True
-            title.update(f" ASSEMBLY EXPLORER | {len(state.perf_stats)} instructions analyzed ")
-            title.styles.color = C_ACCENT3
-
+            scroll.display, error_view.display = True, False
             self._asm_lines = state.asm_content.splitlines()
             self._cycle_counts = {}
             instr_idx = 0
@@ -249,26 +171,23 @@ class LocalBoltApp(App):
                     if instr_idx in state.perf_stats:
                         self._cycle_counts[line_idx + 1] = state.perf_stats[instr_idx].latency
                     instr_idx += 1
-
             self._populate_asm_lines()
-
-        peek = self.query_one("#source-peek", SourcePeekPanel)
-        peek.update_context(state.source_lines, state.asm_mapping)
+        
+        self.query_one("#source-peek", SourcePeekPanel).update_context(state.source_lines, state.asm_mapping)
         self._sync_peek()
 
     def _sync_peek(self) -> None:
         try:
-            peek = self.query_one("#source-peek", SourcePeekPanel)
-            peek.show_for_asm_line(self._cursor)
+            # Sync Source Peek
+            self.query_one("#source-peek", SourcePeekPanel).show_for_asm_line(self._cursor)
             
+            # Sync Instruction Help
             instr_help = self.query_one("#instr-help", InstructionHelpPanel)
             if 0 <= self._cursor < len(self._asm_lines):
                 instr_help.show_for_asm_line(self._asm_lines[self._cursor])
-        except Exception:
-            pass
+        except Exception: pass
 
-    def on_unmount(self) -> None:
-        self.engine.stop()
+    def on_unmount(self) -> None: self.engine.stop()
 
 def run_tui(source_file: str):
     app = LocalBoltApp(source_file)
