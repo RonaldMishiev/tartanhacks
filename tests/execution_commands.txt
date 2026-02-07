@@ -1,0 +1,23 @@
+To start the virtual environment: 
+
+python3 -m venv .venv 
+
+Gather all dependencies 
+
+source .venv/bin/activate
+
+pip install -e .
+
+Run the tests 
+
+python3 tests/test_a.py 
+python3 tests/test_b.py
+
+Samad's local commands for safekeeping: 
+cd /home/samad/Desktop/tartanhacks/tartanhacks
+
+# run tests
+source .venv/bin/activate
+python -m pip install -e .
+python -m pip install pytest
+python -m pytest tests/test_a.py tests/test_b.py -q
