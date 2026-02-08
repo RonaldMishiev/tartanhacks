@@ -20,8 +20,8 @@ def on_file_change(file_path):
         print("Compiler Warnings/Errors:", err)
         
     if asm:
-        # process_assembly returns (asm_str, mapping)
-        clean_asm, mapping = process_assembly(asm)
+        # process_assembly returns (asm_str, mapping, mangled_asm)
+        clean_asm, mapping, _mangled = process_assembly(asm)
         print(f"Success! Clean assembly generated ({len(clean_asm.splitlines())} lines).")
         print(f"First 3 mapping entries: {list(mapping.items())[:3]}")
 

@@ -24,7 +24,9 @@ RE_DIRECTIVE = re.compile(r"^\s*\.[a-zA-Z0-9_]+")
 RE_DATA_DIRECTIVE = re.compile(r"^\s*\.(asciz|string)")
 
 # 5. DWARF / Mapping
-RE_FILE = re.compile(r"^\s*\.file\s+(\d+)\s+\"([^\"]+)\"")
+# Matches both GCC/Clang format:  .file 1 "test.cpp"
+# and LLVM/Rust 3-part format:    .file 8 "/tmp" "test_rust.rs"
+RE_FILE = re.compile(r'^\s*\.file\s+(\d+)\s+"([^"]+)"(?:\s+"([^"]+)")?')
 RE_LOC = re.compile(r"^\s*\.loc\s+(\d+)\s+(\d+)")
 
 class LexerContext:
@@ -43,7 +45,14 @@ def clean_assembly_with_mapping(raw_asm: str, source_filename: str = None) -> Tu
     for line in lines:
         match = RE_FILE.match(line)
         if match:
-            fid, path = int(match.group(1)), match.group(2)
+            fid = int(match.group(1))
+            # DWARF 5 emits .file 0 as the compilation unit root — it is never
+            # referenced by .loc directives, so skip it to avoid misidentification.
+            if fid == 0:
+                continue
+            # 3-part format (LLVM/Rust): .file 8 "/dir" "file.rs" — group(3) is the filename
+            # 2-part format (GCC/Clang): .file 1 "file.cpp" — group(2) is the full path
+            path = match.group(3) if match.group(3) else match.group(2)
             if ctx.source_basename and os.path.basename(path) == ctx.source_basename:
                 ctx.main_file_id = fid
                 break

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 from rich.text import Text
 from textual.widgets import Static
+from ..utils.lang import detect_language, source_label, Language
 
 # User Palette
 C_BG = "#EBEEEE"
@@ -46,10 +47,13 @@ class SourcePeekPanel(Static):
         super().__init__(**kwargs)
         self._source_lines: List[str] = []
         self._asm_mapping: Dict[int, int] = {}
+        self._language: Language = Language.CPP
 
-    def update_context(self, source_lines: List[str], asm_mapping: Dict[int, int]) -> None:
+    def update_context(self, source_lines: List[str], asm_mapping: Dict[int, int], source_path: str = "") -> None:
         self._source_lines = source_lines
         self._asm_mapping = asm_mapping
+        if source_path:
+            self._language = detect_language(source_path)
 
     def show_for_asm_line(self, asm_line: int) -> None:
         src_num = self._asm_mapping.get(asm_line)
@@ -75,7 +79,8 @@ class SourcePeekPanel(Static):
             return
 
         text = Text()
-        text.append(" C++ SOURCE ", style=f"bold {C_BG} on {C_ACCENT3}")
+        label = source_label(self._language)
+        text.append(f" {label} ", style=f"bold {C_BG} on {C_ACCENT3}")
         text.append("\n")
 
         # 1. Line Above
