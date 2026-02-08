@@ -23,9 +23,9 @@
 
 ## What is LocalBolt?
 
-**LocalBolt** is an offline, privacy-first alternative to [Compiler Explorer (Godbolt)](https://godbolt.org/) that runs entirely in your terminal. It watches your C++ source files, recompiles on every save, and displays syntax-highlighted assembly output with per-instruction performance metrics — all without ever leaving your local machine.
+**LocalBolt** is an offline, privacy-first Compiler Explorer that runs entirely in your terminal. It watches your C++ source files, recompiles on every save, and displays syntax-highlighted assembly output with per-instruction performance metrics — all without ever leaving your local machine. Inspired by Godbolt (https://godbolt.org/). 
 
-Built with [Textual](https://textual.textualize.io/) and [Rich](https://rich.readthedocs.io/), it features a clean **Mosaic** light theme with a cyan-to-teal gradient palette designed for extended readability.
+Built with [Textual](https://textual.textualize.io/) and [Rich](https://rich.readthedocs.io/), this project was initially built for the TartanHacks (Carnegie Mellon) Hackathon. Where the project won the "Best Innovation without AI" award. It features a clean **Mosaic** light theme with a cyan-to-teal gradient palette designed for extended readability.
 
 ### ✨ Key Features
 
