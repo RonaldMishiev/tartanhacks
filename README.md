@@ -8,16 +8,11 @@
 <h1 align="center">
   ⚡ LocalBolt
 </h1>
-<<<<<<< HEAD
 
 <p align="center">
-<<<<<<< HEAD
   <b>A local, offline Compiler Explorer — right in your terminal.</b><br/>
-  <sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub>
-=======
-  <sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub><br/>                                                                                                   │
+  <sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub><br/>
   <a href="https://pages.cs.wisc.edu/~samad/localbolt/localbolt.html">Visit the Project Website</a>
->>>>>>> 63c514f (Update README to remove bold description)
 </p>
 
 <p align="center">
@@ -25,13 +20,6 @@
 </p>
 
 ---
-=======
-<p align="center">                                                                                                                                                                                          
-<b>A local, offline Compiler Explorer — right in your terminal.</b><br/>                                                                                                                                  
-<sub>Write C++ in your editor. Watch the assembly update live. Understand every instruction.</sub><br/>                                                                                                   
-<a href="https://pages.cs.wisc.edu/~samad/localbolt/localbolt.html">Visit the Project Website</a>                                                                                                         
-</p>
->>>>>>> 121670c (Revise README content for clarity and accuracy)
 
 ## What is LocalBolt?
 
