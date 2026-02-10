@@ -1,15 +1,24 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, TextArea
 from textual.containers import VerticalScroll, Horizontal, Vertical, Container
+from textual.scrollbar import ScrollBar
 from textual.binding import Binding
+from textual.events import Resize
 from textual.message import Message
 from rich.text import Text
+from rich.cells import cell_len
 from ..engine import BoltEngine
 from ..utils.state import LocalBoltState
 from ..utils.highlighter import build_gutter, highlight_asm_line, severity_styles, INSTRUCTIONS
 from .source_peek import SourcePeekPanel
 from .instruction_help import InstructionHelpPanel
 from .flags_palette import FlagsPopup
+from pathlib import Path
+import sys
+
+_ERR_FILE = Path(__file__).resolve().parent / "err.txt"
+# Minimum cells between right edge of gutter numbers and the scrollbar (keeps gap when window is narrow)
+_GUTTER_RIGHT_MARGIN = 8
 
 # User Palette
 C_BG = "#EBEEEE"
@@ -57,6 +66,13 @@ class LocalBoltApp(App):
         margin: 1 1;
     }}
 
+    #asm-column-header {{
+        height: 1;
+        text-align: right;
+        color: {C_ACCENT1};
+        padding: 0 2;
+    }}
+    #asm-column-header.perf-hidden {{ display: none; }}
     #asm-container {{ height: 1fr; width: 1fr; }}
     
     #error-view {{ color: #a80000; display: none; margin: 1 2; }}
@@ -83,6 +99,7 @@ class LocalBoltApp(App):
         Binding("q", "quit", "Quit", show=True),
         Binding("r", "refresh", "Recompile", show=True),
         Binding("o", "toggle_flags", "Flags", show=True),
+        Binding("f", "toggle_performance", "Perf", show=True),
         Binding("up", "cursor_up", "Up", show=False, priority=True),
         Binding("down", "cursor_down", "Down", show=False, priority=True),
         Binding("k", "cursor_up", show=False, priority=True),
@@ -103,15 +120,15 @@ class LocalBoltApp(App):
         self._cycle_counts: dict[int, int] = {}
         self._asm_mapping: dict[int, int] = {}  # asm_line_idx -> source_line_number
         self._sibling_lines: set[int] = set()   # asm indices sharing the same C++ line as cursor
+        self._show_performance = True  # toggle with "f" to show/hide cycle column
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="main-layout"):
             yield TextArea(id="error-view", read_only=True)
-            yield Vertical(
-                AsmScroll(id="asm-container"),
-                id="asm-container-outer"
-            )
+            with Vertical(id="asm-container-outer"):
+                yield Static("Performance (⏰ Cycles)", id="asm-column-header")
+                yield AsmScroll(id="asm-container")
         # Dual Floating Popups
         yield SourcePeekPanel(id="source-peek")
         yield InstructionHelpPanel(id="instr-help")
@@ -121,27 +138,44 @@ class LocalBoltApp(App):
     def on_mount(self) -> None:
         self.engine.start()
 
+    def on_resize(self, _event: Resize) -> None:
+        if self._asm_lines:
+            self._populate_asm_lines()
+    
     def _render_line(self, idx: int) -> Text:
         if idx >= len(self._asm_lines): return Text("")
         line = self._asm_lines[idx]
         line_num = idx + 1
         cycles = self._cycle_counts.get(line_num)
         fg, _ = severity_styles(cycles)
-        width = 200 
+        try:
+            scroll = self.query_one("#asm-container", AsmScroll)
+            width = scroll.size.width
+            scrollbar = scroll.query_one(ScrollBar)
+            offset = scrollbar.size.width + _GUTTER_RIGHT_MARGIN
+        except Exception:
+            width = self.size.width
+            offset = 1 + _GUTTER_RIGHT_MARGIN
         row = Text()
-        # Gutter indicator: cursor ▶, sibling │, or blank
+        # Gutter indicator: cursor ▶, sibling │, or blank (measure in cells for alignment)
+        gutter_prefix = "▶ " if idx == self._cursor else ("│ " if idx in self._sibling_lines else "  ")
         if idx == self._cursor:
-            row.append("▶ ", style=f"bold {C_ACCENT4}")
+            row.append(gutter_prefix, style=f"bold {C_ACCENT4}")
         elif idx in self._sibling_lines:
-            row.append("│ ", style=f"bold {C_ACCENT1}")
+            row.append(gutter_prefix, style=f"bold {C_ACCENT1}")
         else:
-            row.append("  ")
-        row.append_text(highlight_asm_line(line, ""))
-        gutter_text = f"{cycles}c" if cycles is not None else ""
-        used = 2 + len(line) + len(gutter_text)
-        padding = max(1, width - used)
+            row.append(gutter_prefix)
+        
+        rendered_line = highlight_asm_line(line, "")
+        row.append_text(rendered_line)
+        if not self._show_performance:
+            return row
+        gutter_text = f"{cycles}" if cycles is not None else ""
+        left_plain = row.plain.expandtabs(8)
+        used_cells = cell_len(left_plain) + cell_len(gutter_text)
+        padding = max(1, width - used_cells - offset)
         row.append(" " * padding)
-        if cycles is not None: row.append(gutter_text, style=fg)
+        row.append(gutter_text, style=fg)
         return row
 
     def _populate_asm_lines(self) -> None:
@@ -201,6 +235,11 @@ class LocalBoltApp(App):
     def action_toggle_flags(self) -> None:
         current = " ".join(self.engine.user_flags)
         self.query_one("#flags-palette", FlagsPopup).show(current)
+
+    def action_toggle_performance(self) -> None:
+        self._show_performance = not self._show_performance
+        self.query_one("#asm-column-header").set_class(not self._show_performance, "perf-hidden")
+        self._populate_asm_lines()
 
     def on_flags_popup_flags_changed(self, message: FlagsPopup.FlagsChanged) -> None:
         new_flags = message.flags.split()
