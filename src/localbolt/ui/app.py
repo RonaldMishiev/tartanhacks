@@ -227,7 +227,7 @@ class LocalBoltApp(App):
         
         self._asm_mapping = state.asm_mapping
         self._sibling_lines = self._compute_siblings()
-        self.query_one("#source-peek", SourcePeekPanel).update_context(state.source_lines, state.asm_mapping)
+        self.query_one("#source-peek", SourcePeekPanel).update_context(state.source_lines, state.asm_mapping, state.source_path)
         self._sync_peek()
 
     def _sync_peek(self) -> None:

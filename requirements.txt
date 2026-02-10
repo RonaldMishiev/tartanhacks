@@ -12,8 +12,17 @@ pip install -e .
 # Normal mode (Watch a C++ file)
 localbolt hello.cpp
 
+# Normal mode (Watch a Rust file — requires rustc)
+localbolt hello.rs
+
 # Assembly Help Mode (CLI manual)
 localbolt --assemblyhelp
+
+## 2b. Rust Support (Optional)
+# Install rustc via rustup:
+#   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Install rustfilt for symbol demangling:
+#   cargo install rustfilt
 
 ## 3. Running Tests
 # Run all tests at once

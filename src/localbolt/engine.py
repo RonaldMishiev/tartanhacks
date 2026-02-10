@@ -1,8 +1,10 @@
 from typing import Callable, Optional
 from .compiler.driver import CompilerDriver
+from .compiler.rust_driver import RustCompilerDriver
 from .parsing import process_assembly, parse_mca_output, parse_diagnostics, InstructionStats
 from .utils.state import LocalBoltState
 from .utils.watcher import FileWatcher
+from .utils.lang import detect_language, Language
 import time
 import shutil
 import os
@@ -10,7 +12,11 @@ import os
 class BoltEngine:
     def __init__(self, source_file: str):
         self.state = LocalBoltState(source_path=source_file)
-        self.driver = CompilerDriver()
+        self.language = detect_language(source_file)
+        if self.language == Language.RUST:
+            self.driver = RustCompilerDriver()
+        else:
+            self.driver = CompilerDriver()
         self.watcher = FileWatcher()
         self.on_update_callback: Optional[Callable[[LocalBoltState], None]] = None
         self.log_file = "/tmp/localbolt_engine.log"
@@ -49,7 +55,10 @@ class BoltEngine:
 
             if asm_raw:
                 # 1. Get both demangled and mangled cleaned versions
-                clean_asm, mapping, mangled_asm = process_assembly(asm_raw, self.state.source_path)
+                lang_str = "rust" if self.language == Language.RUST else "cpp"
+                clean_asm, mapping, mangled_asm = process_assembly(
+                    asm_raw, self.state.source_path, language=lang_str
+                )
                 self.state.update_asm(clean_asm, mapping)
 
                 # 2. Run performance analysis on the MANGLED code

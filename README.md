@@ -51,9 +51,11 @@ Built with [Textual](https://textual.textualize.io/) and [Rich](https://rich.rea
 | Tool | Purpose | Install |
 |---|---|---|
 | **Python 3.10+** | Runtime | [python.org](https://www.python.org/downloads/) |
-| **g++ or clang++** | Compilation | `brew install gcc` / `apt install g++` |
+| **g++ or clang++** | C++ compilation | `brew install gcc` / `apt install g++` |
 | **llvm-mca** | Performance analysis | `brew install llvm` / `apt install llvm` |
-| **c++filt** | Symbol demangling | Included with `gcc` / `binutils` |
+| **c++filt** | C++ symbol demangling | Included with `gcc` / `binutils` |
+| **rustc** *(optional)* | Rust compilation | [rustup.rs](https://rustup.rs/) |
+| **rustfilt** *(optional)* | Rust symbol demangling | `cargo install rustfilt` |
 
 ### Install
 
