@@ -52,6 +52,14 @@ class BoltEngine:
             self.state.compiler_output = stderr
             self.state.user_flags = self.user_flags
             self.state.diagnostics = parse_diagnostics(stderr)
+            # write asm to err.txt
+            try:
+                with open("err.txt", "a") as err_f:
+                    err_f.write("ASM_RAW\n")
+                    err_f.write(asm_raw)
+            except Exception:
+                with open("err.txt", "a") as err_f:
+                    err_f.write("Error in asm_raw to err.txt\n")
 
             if asm_raw:
                 # 1. Get both demangled and mangled cleaned versions

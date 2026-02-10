@@ -1,5 +1,6 @@
 import re
 import shutil
+from pathlib import Path
 from rich.text import Text
 
 # Palette provided by user
@@ -9,6 +10,8 @@ C_MISC1 = "#9FBFC5" # Muted Blue-Grey
 C_MISC2 = "#007b9a" # Strong Cyan (Instructions)
 C_MISC3 = "#00796b" # Strong Teal (Labels)
 C_MISC4 = "#af5f00" # Strong Orange (Registers)
+
+_ERR_FILE = Path(__file__).resolve().parents[3] / "highlight_errors.txt"
 
 REGISTERS = re.compile(
     r"\b("
@@ -25,11 +28,11 @@ SIZE_KEYWORDS = re.compile(r"\b(DWORD|QWORD|WORD|BYTE|PTR)\b")
 NUMBERS = re.compile(r"\b(0x[0-9a-fA-F]+|0b[01]+|[0-9]+)\b")
 INSTRUCTIONS = re.compile(
     r"\b("
-    r"movs?[xzbw]?|lea|add|sub|imul|idiv|mul|div|inc|dec"
+    r"movs?[xzbw]?|lea|add|subs?|imul|idiv|mul|div|sdiv|inc|dec"
     r"|cmp|test|and|or|xor|not|shl|shr|sar|sal"
     r"|jmp|je|jne|jz|jnz|jg|jge|jl|jle|ja|jae|jb|jbe"
     r"|call|ret|push|pop|nop|int|syscall|leave|enter"
-    r"|cmov\w+|stp|ldp|stur|ldur|adrp|bl|b\."
+    r"|cmov\w+|adrp|bl|b\.|cbnz"
     r")\b",
     re.IGNORECASE,
 )
@@ -45,6 +48,15 @@ def _severity_styles(cycles: int | None) -> tuple[str, str]:
     return (C_TEXT, "on #f8d7da")
 
 def _highlight_asm_line(line: str, bg: str) -> Text:
+    # Debug: log the raw (already demangled) line we are asked to render.
+    # NOTE: This is called frequently during rendering and can grow highlight_errors.txt quickly.
+    try:
+        with _ERR_FILE.open("a", encoding="utf-8") as f:
+            f.write(line.rstrip("\n") + "\n")
+    except Exception:
+        with _ERR_FILE.open("a", encoding="utf-8") as f:
+            f.write("Error in highlight_asm_line to highlight_errors.txt\n")
+
     segment = Text()
     stripped = line.lstrip()
     if stripped.startswith("#") or stripped.startswith(";"):
@@ -52,16 +64,27 @@ def _highlight_asm_line(line: str, bg: str) -> Text:
         return segment
 
     token_styles: list[str | None] = [None] * len(line)
-    
+
     # Apply Palette
-    label_match = re.match(r"^(\s*\.?\w+\s*:)", line)
+    # Labels / function headers (e.g. "binexp(int, int):" or "_Z6binexpii:")
+    # Treat everything from start of line up to the first ':' as the label token.
+    # Do not treat lines containing "::" as labels (e.g. C++ symbols like std::cout).
+    # label_match = re.match(r"^(\s*\.?\w+\s*:)", line)
+    label_match = re.match(r"^(?!.*::)(\s*[^:\s][^:]*:\s*)", line)
     if label_match:
         for j in range(label_match.start(), label_match.end()):
             token_styles[j] = f"bold {C_MISC3}" # Teal Labels
 
+    # Only the first instruction match on the line gets instruction (blue) highlighting
+    instruction_span = None  # (start, end) of the highlighted instruction
     for m in INSTRUCTIONS.finditer(line):
-        for j in range(m.start(), m.end()):
-            token_styles[j] = f"bold {C_MISC2}" # Cyan Instructions
+        if instruction_span is None:
+            for j in range(m.start(), m.end()):
+                # Don't override existing styling (e.g. labels / function headers)
+                if token_styles[j] is None:
+                    token_styles[j] = f"bold {C_MISC2}"  # Cyan Instructions
+            instruction_span = (m.start(), m.end())
+        # further instruction matches on the same line are left unstyled
 
     for m in SIZE_KEYWORDS.finditer(line):
         for j in range(m.start(), m.end()):
@@ -71,7 +94,19 @@ def _highlight_asm_line(line: str, bg: str) -> Text:
         for j in range(m.start(), m.end()):
             token_styles[j] = "#666666"
 
+    # Highlight registers. If a register match also matches an instruction,
+    # only style it as a register if a DIFFERENT instruction was already
+    # highlighted on this line (so e.g. "bl" on a "bl ..." line stays blue,
+    # but "sp" on any instruction line is orange).
     for m in REGISTERS.finditer(line):
+        also_instruction = INSTRUCTIONS.fullmatch(line[m.start():m.end()])
+        if also_instruction:
+            # This token is both a register and an instruction —
+            # only colour it as a register if a different instruction is on the line
+            if instruction_span is None:
+                continue  # no instruction on the line, leave unstyled
+            if m.start() == instruction_span[0] and m.end() == instruction_span[1]:
+                continue  # same span as the highlighted instruction, keep it blue
         for j in range(m.start(), m.end()):
             token_styles[j] = f"bold {C_MISC4}" # Orange Registers
 

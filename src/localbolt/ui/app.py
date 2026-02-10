@@ -71,6 +71,7 @@ class LocalBoltApp(App):
         text-align: right;
         color: {C_ACCENT1};
         padding: 0 2;
+        text-style: bold italic;
     }}
     #asm-column-header.perf-hidden {{ display: none; }}
     #asm-container {{ height: 1fr; width: 1fr; }}
@@ -127,7 +128,8 @@ class LocalBoltApp(App):
         with Vertical(id="main-layout"):
             yield TextArea(id="error-view", read_only=True)
             with Vertical(id="asm-container-outer"):
-                yield Static("Performance (⏰ Cycles)", id="asm-column-header")
+                header_text = Text("⚡ Performance (⏰ Cycles)", style="bold italic")
+                yield Static(header_text, id="asm-column-header")
                 yield AsmScroll(id="asm-container")
         # Dual Floating Popups
         yield SourcePeekPanel(id="source-peek")

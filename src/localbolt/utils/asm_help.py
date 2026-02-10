@@ -19,7 +19,7 @@ ASM_INSTRUCTIONS = {
     "PUSH": ("Pushes a value onto the stack (x86).", "push rax", "Put RAX onto the stack"),
     "POP": ("Pops a value from the stack into a register (x86).", "pop rdi", "Take value from top of stack into RDI"),
     "ADD": ("Adds two operands and stores the result in the first.", "add x0, x1, x2", "x0 = x1 + x2"),
-    "SUB": ("Subtracts the second operand from the first.", "sub sp, sp, #16", "Allocate 16 bytes on the stack"),
+    "SUB/SUBS": ("Subtracts and optionally updates flags (SUBS).", "subs x0, x1, x2", "x0 = x1 - x2; flags updated for conditional branches"),
     "IMUL": ("Signed multiplication.", "imul rax, rbx", "RAX = RAX * RBX"),
     "CMP": ("Compares two operands by setting CPU flags.", "cmp w0, #0", "Check if W0 is zero"),
     "RET": ("Returns from a function.", "ret", "Return to the calling function"),
@@ -46,6 +46,7 @@ ASM_INSTRUCTIONS = {
     "JG": ("Jump if Greater (signed).", "jg .Lbigger", "Jump if left > right"),
     "JL": ("Jump if Less (signed).", "jl .Lsmaller", "Jump if left < right"),
     "JGE": ("Jump if Greater or Equal (signed).", "jge .Ltop", "Jump if left >= right"),
+    "MUL": ("Unsigned integer multiplication (x86) or generic multiply.", "mul ecx", "EDX:EAX = EAX * ECX (unsigned x86)"),
     
     # --- ARM64 Specific (Modern Mac) ---
     "LDR": ("Load Register: Loads a value from memory into a register.", "ldr x0, [x1]", "Load value at address x1 into x0"),
@@ -56,8 +57,10 @@ ASM_INSTRUCTIONS = {
     "BL": ("Branch with Link: Calls a function.", "bl _printf", "Execute the printf function"),
     "B": ("Branch: Unconditional jump.", "b .L2", "Always jump to label .L2"),
     "B.": ("Conditional Branch (e.g., B.EQ, B.NE).", "b.eq .Lerror", "Jump if previous comparison was equal"),
+    "CBNZ": ("Compare and Branch if Not Zero (ARM64).", "cbnz x0, .Lloop", "If x0 != 0, branch to .Lloop"),
     "STUR": ("Store Unscaled: Store register with an unscaled offset.", "stur w0, [x29, #-4]", "Store local variable on stack"),
     "LDUR": ("Load Unscaled: Load register with an unscaled offset.", "ldur w0, [x29, #-4]", "Load local variable from stack"),
+    "SDIV": ("Signed integer division (ARM64).", "sdiv x0, x1, x2", "x0 = x1 / x2 (signed divide)"),
 }
 
 def create_gradient_header(title: str) -> Text:
